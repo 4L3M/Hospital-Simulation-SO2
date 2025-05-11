@@ -21,11 +21,18 @@ class Pacjent:
         self.x, self.y = 0, 0
         self.czas_na_odziale = random.randint(150, 200)
         self.oval = canvas.create_oval(self.x, self.y, self.x + 15, self.y + 15, fill=self.color)
+        self.lozko_info = None
+        self.oddzial_pacjenta = None
 
     def move_to(self, x, y):
         dx, dy = x - self.x, y - self.y
         self.canvas.move(self.oval, dx, dy)
         self.x, self.y = x, y
+
+class PacjentNaBadaniu:
+    def __init__(self, pacjent):
+        self.pacjent = pacjent
+
 
 class PokojBadania(threading.Thread):
     def __init__(self, nazwa, x, y, canvas):
@@ -54,7 +61,26 @@ class PokojBadania(threading.Thread):
                 pacjent.status = f"Badanie {self.nazwa}"
                 time.sleep(random.uniform(2, 4))
                 pacjent.status = f"Po badaniu {self.nazwa}"
-                self.pacjent = None
+                # Powrot do lozka lub do kolejki
+                symulacja = self.canvas.symulacja
+
+                if pacjent.lozko_info:
+                    oddzial, index = pacjent.lozko_info
+                elif hasattr(pacjent, "oddzial_pacjenta") and pacjent.oddzial_pacjenta:
+                    oddzial = pacjent.oddzial_pacjenta
+                    index = -1
+                    print(f"[{pacjent.id}] WRACA Z BADANIA bez łóżka -> {oddzial}")
+                else:
+                    print(f"⚠️ Pacjent {pacjent.id} nie ma przypisanego oddziału! Pomijam.")
+                    self.pacjent = None
+                    continue
+
+                # LOGIKA PRZYWRACANIA DO ODDZIAŁU:
+                # Zamiast samodzielnie wciskać pacjenta do łóżka lub kolejki — przekaż go do lekarza (lista po_badaniu)
+                lekarz = symulacja.lekarze[oddzial]
+                with lekarz.lock:
+                    lekarz.po_badaniu.append(pacjent)
+                    print(f"[{pacjent.id}] WRACA Z BADANIA -> {oddzial}, przekazany do kolejki po_badaniu")
             else:
                 time.sleep(0.1)
 
@@ -80,6 +106,7 @@ class Lekarz(threading.Thread):
         self.stop_event = threading.Event()
         self.pacjent = None
         self.gotowi = []
+        self.po_badaniu = []
         self.symulacja = symulacja
 
     def skonsultuj(self, pacjent):
@@ -137,6 +164,7 @@ class Oddzial:
                 if self.lozka[i] is None:
                     self.lozka[i] = pacjent
                     pacjent.status = f"{self.nazwa} - łóżko {i + 1}"
+                    pacjent.lozko_info = (self.nazwa, i)
                     return True
             self.kolejka.put(pacjent)
             pacjent.status = f"{self.nazwa} (oczekuje)"
@@ -147,10 +175,12 @@ class Oddzial:
             for i in range(len(self.lozka)):
                 if self.lozka[i] == pacjent:
                     self.lozka[i] = None
+                    pacjent.lozko_info = None
                     break
             if not self.kolejka.empty():
                 nowy = self.kolejka.get()
                 self.lozka[i] = nowy
+                nowy.lozko_info = (self.nazwa, i)
                 nowy.status = f"{self.nazwa} - łóżko {i + 1}"
 
 class Pielegniarka(threading.Thread):
@@ -175,7 +205,9 @@ class Pielegniarka(threading.Thread):
                     pacjent.status = f"Pielęgniarka {self.id + 1}"
                 time.sleep(random.uniform(2, 4))
                 oddzial_obj = random.choice(list(self.oddzialy.values()))
+                pacjent.oddzial_pacjenta = oddzial_obj.nazwa
                 oddzial_obj.przyjmij_pacjenta(pacjent)
+                print(f"✅ [{pacjent.id}] przypisano do oddziału: {pacjent.oddzial_pacjenta}")
                 with self.lock:
                     self.pacjent = None
             except:
@@ -194,6 +226,7 @@ class Symulacja:
         self.canvas.pack()
         self.root = root
         root.protocol("WM_DELETE_WINDOW", self.zakoncz_program)
+        self.canvas.symulacja = self
 
         self.pacjenci = [Pacjent(i, self.canvas) for i in range(PACJENTÓW)]
         self.kolejka_wejsciowa = Queue()
@@ -230,7 +263,12 @@ class Symulacja:
         self.draw_labels()
         self.lozka_graficzne = {}
         self.lozka_rects = {}
+        self.gabinet_rects = {}
+        self.pokoj_rects = {}
+        self.lozka_zajete_czasowo = set()
         self.rysuj_lozka()
+        self.rysuj_gabinety()
+        self.rysuj_pokoje_badan()
         self.update_gui()
 
     def draw_labels(self):
@@ -252,6 +290,18 @@ class Symulacja:
                 self.lozka_graficzne[(nazwa, i)] = (lx + 7, ly + 2)
                 self.lozka_rects[(nazwa, i)] = rect
 
+    def rysuj_gabinety(self):
+        for i, (nazwa, lekarz) in enumerate(self.lekarze.items()):
+            x, y = lekarz.x, lekarz.y
+            rect = self.canvas.create_rectangle(x - 10, y - 10, x + 25, y + 25, outline="black", fill="white")
+            self.gabinet_rects[nazwa] = rect
+
+    def rysuj_pokoje_badan(self):
+        for nazwa, pokoj in self.pokoje_badan.items():
+            x, y = pokoj.x, pokoj.y
+            rect = self.canvas.create_rectangle(x - 10, y - 10, x + 25, y + 25, outline="black", fill="white")
+            self.pokoj_rects[nazwa] = rect
+
     def update_gui(self):
         for i, pacjent in enumerate(list(self.kolejka_wejsciowa.queue)):
             pacjent.move_to(50 + i * 20, 50)
@@ -266,19 +316,42 @@ class Symulacja:
 
             for i, pacjent in enumerate(oddzial.lozka):
                 rect_id = self.lozka_rects[(nazwa, i)]
-                color = pacjent.color if pacjent else "green"
+                if isinstance(pacjent, PacjentNaBadaniu):
+                    pacjent_actual = pacjent.pacjent
+                    if not isinstance(pacjent_actual, Pacjent):
+                        print(f"⚠️ Problem: łóżko ({nazwa}, {i}) ma błędny obiekt")
+                    color = "black"
+                else:
+                    pacjent_actual = pacjent
+                    color = pacjent_actual.color if pacjent_actual else "green"
+
                 self.canvas.itemconfig(rect_id, fill=color)
-                if pacjent:
+                if pacjent_actual:
                     lx, ly = self.lozka_graficzne[(nazwa, i)]
-                    pacjent.move_to(lx, ly)
-                    pacjent.czas_na_odziale -= 1
-                    if pacjent.czas_na_odziale == 100 and random.random() < 0.2:
+                    pacjent_actual.move_to(lx, ly)
+                    pacjent_actual.czas_na_odziale -= 1
+                    if pacjent_actual.czas_na_odziale == 100 and random.random() < 0.2:
                         pokoj = random.choice(list(self.pokoje_badan.values()))
-                        pokoj.skieruj_na_badanie(pacjent)
-                    if pacjent.czas_na_odziale <= 0:
-                        pacjent.status = "Wypisany"
-                        self.wypisani.append(pacjent)
-                        oddzial.zwolnij_lozko(pacjent)
+                        oddzial.lozka[i] = PacjentNaBadaniu(pacjent_actual)
+                        pokoj.skieruj_na_badanie(pacjent_actual)
+                        self.lozka_zajete_czasowo.add((nazwa, i))
+                    if pacjent_actual.czas_na_odziale <= 0:
+                        pacjent_actual.status = "Wypisany"
+                        self.wypisani.append(pacjent_actual)
+                        oddzial.zwolnij_lozko(pacjent_actual)
+                        self.lozka_zajete_czasowo.discard((nazwa, i))
+                        print(f"✅ [{pacjent_actual.id}] Wypisany z oddziału {nazwa}")
+
+
+            # Najpierw pacjenci po badaniu – mają priorytet
+            while oddzial.lekarz.po_badaniu:
+                pacjent = oddzial.lekarz.po_badaniu.pop(0)
+                zakwaterowany = oddzial.zakwateruj_po_konsultacji(pacjent)
+                if not zakwaterowany:
+                    # Jeśli nie ma miejsca – wrzuć z powrotem na początek listy
+                    oddzial.lekarz.po_badaniu.insert(0, pacjent)
+                    break
+
 
             while oddzial.lekarz.gotowi:
                 pacjent = oddzial.lekarz.gotowi.pop(0)
@@ -292,12 +365,16 @@ class Symulacja:
                 pacjent.move_to(oddzial.lekarz.x + j * 20, oddzial.lekarz.y + 25)
 
             for j, pacjent in enumerate(list(oddzial.kolejka.queue)):
-                pacjent.move_to(100 + idx * 250 + j * 20, 240)
+                if pacjent:
+                    print(f"[{pacjent.id}] RYSOWANY w kolejce do łóżka oddziału {nazwa}")
+                    pacjent.move_to(100 + idx * 250 + j * 20, 240)
 
         for pokoj in self.pokoje_badan.values():
             pacjent = pokoj.get_pacjent()
             if pacjent:
                 pacjent.move_to(pokoj.x, pokoj.y)
+                if pacjent.lozko_info and pacjent.lozko_info[1] != -1:
+                    self.lozka_zajete_czasowo.discard(pacjent.lozko_info)
             for j, p in enumerate(pokoj.get_kolejka()):
                 p.move_to(pokoj.x + j * 20, pokoj.y + 25)
 
@@ -305,6 +382,23 @@ class Symulacja:
             x = 1150 + (i % 5) * 20
             y = 70 + (i // 5) * 20
             pacjent.move_to(x, y)
+
+        for nazwa, lekarz in self.lekarze.items():
+            rect = self.gabinet_rects[nazwa]
+            pacjent = lekarz.get_pacjent()
+            kolor = pacjent.color if pacjent else "white"
+            self.canvas.itemconfig(rect, fill=kolor)
+
+        for nazwa, pokoj in self.pokoje_badan.items():
+            rect = self.pokoj_rects[nazwa]
+            pacjent = pokoj.get_pacjent()
+            kolor = pacjent.color if pacjent else "white"
+            self.canvas.itemconfig(rect, fill=kolor)
+
+        for pacjent in self.pacjenci:
+            if "Po badaniu" in pacjent.status:
+                pacjent.move_to(600 + pacjent.id * 10, 600)
+
 
         if len(self.wypisani) < PACJENTÓW:
             self.canvas.after(100, self.update_gui)
