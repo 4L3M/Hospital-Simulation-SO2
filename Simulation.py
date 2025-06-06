@@ -21,7 +21,7 @@ OK - zmienny czas pracy lekarza (bo kilku na oddziale)
 OK - zmienna liczba łóżek na oddziale
 0K - zmienna liczba badań, ale ma być dosyć dużo możliwych
 OK - dodać leki - zmienne zasoby które się kończą, trzeba domówić i one się odnawiają
-- dodać możliwość śmierci pacjenta
+OK - dodać możliwość śmierci pacjenta
 
 - STATYSTYKI
 - ile czasu ktoś spędził w szpitalu, ile badań miał, ile czekał na przyjęcie (łóżko)
@@ -66,9 +66,10 @@ class Pacjent:
         self.oval = canvas.create_oval(self.x, self.y, self.x + 15, self.y + 15, fill=self.color)
         self.leki = {}
         self.label = canvas.create_text(
-            self.x, self.y + 20,
+            self.x, self.y + 25,
             text=f"{self.krytycznosc}%", font=("Arial", 8),
-            fill="black"
+            fill="black",
+            tags=f"label_pacjent_{self.id}"
         )
 
 
@@ -83,12 +84,12 @@ class Pacjent:
         # Aktualizuj tekst labela
         self.canvas.itemconfig(
             self.label,
-            text=f"Stan:{self.krytycznosc} | {self.status[:12]}"
+            text=f"{self.krytycznosc} | {self.status[:12]}"
         )
 
         # Kolor obramowania w zależności od stanu
         if self.krytycznosc > 120:
-            outline = "black"
+            outline = "yellow"
         elif self.krytycznosc > 60:
             outline = "orange"
         else:
@@ -179,6 +180,10 @@ class Lekarz(threading.Thread):
             # Obsługa pacjentów tylko jeśli w gabinecie
             with self.lock:
                 pacjent = self.kolejka.pop(0) if self.kolejka else None
+
+            if pacjent is None or pacjent.status == "Zmarł":
+                time.sleep(0.1)
+                continue
 
             if pacjent:
                 with self.lock:
@@ -307,6 +312,8 @@ class LekarzDiagnosta(threading.Thread):
         while not self.stop_event.is_set():
             try:
                 pacjent = self.gabinet.kolejka.get(timeout=1)
+                if pacjent.status == "Zmarł":
+                    continue
                 self.gabinet.set_aktywny(pacjent)
                 pacjent.status = f"Badanie: {self.gabinet.nazwa}"
                 time.sleep(random.uniform(3, 5))  # czas badania
@@ -377,11 +384,17 @@ class Pielegniarka(threading.Thread):
         while not self.stop_event.is_set():
             try:
                 # Czy dyżur się skończył?
+                # opóźnij przerwę jeśli trwa obsługa
                 if self.w_pracy and (self.app.symulowany_czas - self.start_dyzuru >= self.dlugosc_dyzuru):
-                    print(f"🛌 Pielęgniarka {self.id + 1} kończy dyżur i idzie na przerwę.")
-                    self.w_pracy = False
-                    self.start_przerwy = self.app.symulowany_czas
-                    continue
+                    if self.pacjent is None:
+                        print(f"🛌 Pielęgniarka {self.id + 1} kończy dyżur i idzie na przerwę.")
+                        self.w_pracy = False
+                        self.start_przerwy = self.app.symulowany_czas
+                        continue
+                    else:
+                        # opóźnij przerwę – wróć do pętli, aż pacjent zostanie obsłużony
+                        time.sleep(0.1)
+                        continue
 
                 # Czy przerwa się skończyła?
                 if not self.w_pracy:
@@ -410,7 +423,24 @@ class Pielegniarka(threading.Thread):
                     if not self.kolejka.queue:
                         time.sleep(0.1)
                         continue
-                    kolejka_lista = list(self.kolejka.queue)
+
+                    # Odfiltruj zmarłych i None
+                    kolejka_lista = [p for p in self.kolejka.queue if p is not None and p.status != "Zmarł"]
+                    if not kolejka_lista:
+                        time.sleep(0.1)
+                        continue
+
+                    kolejka_lista.sort(key=lambda p: p.krytycznosc)
+                    pacjent = kolejka_lista.pop(0)
+
+                    self.kolejka.queue.clear()
+                    self.kolejka.queue.extend(kolejka_lista)
+
+                # Dodaj zabezpieczenie na wszelki wypadek:
+                if pacjent is None:
+                    time.sleep(0.1)
+                    continue
+
                     kolejka_lista.sort(key=lambda p: p.krytycznosc)
                     pacjent = kolejka_lista.pop(0)
                     self.kolejka.queue.clear()
@@ -594,7 +624,7 @@ class Symulacja:
     def draw_labels(self):
         self.canvas.create_text(100, 30, text="Izba Przyjęć", font=("Arial", 10))
         for i, nazwa in enumerate(ODDZIALY):
-            self.canvas.create_text(100 + i * 250, 200, text=f"Oddział {nazwa}", font=("Arial", 10))
+            self.canvas.create_text(100 + i * 250, 160, text=f"Oddział {nazwa}", font=("Arial", 10))
             self.canvas.create_text(100 + i * 250, 400, text=f"Lekarz {nazwa}", font=("Arial", 9))
         self.canvas.create_text(1600, 700, text="Wypisani", font=("Arial", 10))
         self.canvas.create_text(1700, 700, text="Kostnica", font=("Arial", 10))
@@ -613,9 +643,9 @@ class Symulacja:
                 rzad = i // 3  # co 3 łóżka nowy rząd
                 kol = i % 3  # kolumna w rzędzie
 
-                base_x = 100 + idx * 250
-                lx = base_x + kol * 40
-                ly = 210 + rzad * 30
+                base_x = 50 + idx * 250
+                lx = base_x + kol * 50
+                ly = 180 + rzad * 40
 
                 rect = self.canvas.create_rectangle(lx, ly, lx + 30, ly + 20, outline="black")
                 label = self.canvas.create_text(lx + 15, ly + 10, text=f"L{i + 1}", font=("Arial", 7))
@@ -631,13 +661,50 @@ class Symulacja:
         pacjent.krytycznosc = min(pacjent.krytycznosc + ile, 250)  # max 200
 
     def sprawdz_zgon(self, pacjent, oddzial):
-        if pacjent is None:
-            return False
-        if pacjent.krytycznosc <= 0 and pacjent.status != "Zmarł":
+        if pacjent and pacjent.krytycznosc <= 0 and pacjent.status != "Zmarł":
             pacjent.status = "Zmarł"
             self.zmarli.append(pacjent)
             oddzial.zwolnij_lozko(pacjent)
             print(f"💀 Pacjent {pacjent.id} zmarł.")
+
+            # Oznacz graficznie jako zmarły
+            self.canvas.itemconfig(pacjent.oval, fill="black", outline="black")
+            self.canvas.itemconfig(pacjent.label, text=f"ZMARŁ")
+
+            # Usuń z kolejki wejściowej
+            with self.kolejka_wejsciowa.mutex:
+                try:
+                    self.kolejka_wejsciowa.queue.remove(pacjent)
+                except ValueError:
+                    pass
+
+            # Usuń z kolejek lekarzy
+            for lekarze in self.lekarze.values():
+                for lekarz in lekarze:
+                    with lekarz.lock:
+                        if pacjent in lekarz.kolejka:
+                            lekarz.kolejka.remove(pacjent)
+                        if lekarz.pacjent == pacjent:
+                            lekarz.pacjent = None
+
+            # Usuń z kolejek oddziałów
+            for oddzial in self.oddzialy.values():
+                with oddzial.lock:
+                    try:
+                        oddzial.kolejka.queue.remove(pacjent)
+                    except ValueError:
+                        pass
+
+            # Usuń z gabinetów badań
+            for gabinet in self.gabinety_badan.values():
+                with gabinet.lock:
+                    if gabinet.aktywny_pacjent == pacjent:
+                        gabinet.aktywny_pacjent = None
+                    try:
+                        gabinet.kolejka.queue.remove(pacjent)
+                    except ValueError:
+                        pass
+
             return True
         return False
 
@@ -687,6 +754,7 @@ class Symulacja:
                 pacjent.move_to(gabinet.x, gabinet.y)
 
             for j, p in enumerate(gabinet.get_kolejka()):
+                self.canvas.delete(f"label_pacjent_{p.id}")
                 p.move_to(gabinet.x + j * 18, gabinet.y + 65)
                 self.obniz_krytycznosc(p, 0.5)  # zmniejszenie krytyczności co tick
 
@@ -792,6 +860,11 @@ class Symulacja:
 
                 # pacjenci wracający na łóżko po badaniu
             for pacjent in self.pacjenci:
+                if self.sprawdz_zgon(pacjent, self.oddzialy.get(pacjent.oddzial_docelowy)):
+                    continue
+                if self.sprawdz_wypis(pacjent, self.oddzialy.get(pacjent.oddzial_docelowy)):
+                    continue
+
                 if pacjent.status == "Powrót na łóżko" and pacjent.czy_ma_lozko and pacjent.index_lozka is not None:
                     for oddzial in self.oddzialy.values():
                         if any(pacjent == p for p in oddzial.lozka if p is not None):
