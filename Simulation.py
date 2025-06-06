@@ -92,8 +92,10 @@ class Pacjent:
             outline = "yellow"
         elif self.krytycznosc > 60:
             outline = "orange"
-        else:
+        elif self.krytycznosc > 0:
             outline = "red"
+        else:
+            outline = "black"
 
         self.canvas.itemconfig(self.oval, outline=outline, width=3)
 
@@ -145,7 +147,7 @@ class Lekarz(threading.Thread):
     def run(self):
         while not self.stop_event.is_set():
             # Czy czas pracy minął?
-            if self.w_pracy and (self.app.symulowany_czas - self.start_dyzuru >= self.dlugosc_dyzuru):
+            if self.w_pracy and (self.app.symulowany_czas - self.start_dyzuru >= self.dlugosc_dyzuru) and self.pacjent is None:
                 print(f"🛌 Lekarz {self.nazwa} #{self.numer} kończy dyżur i idzie na 12h przerwy.")
                 self.w_pracy = False
                 self.start_dyzuru = self.app.symulowany_czas
@@ -386,11 +388,16 @@ class Pielegniarka(threading.Thread):
                 # Czy dyżur się skończył?
                 # opóźnij przerwę jeśli trwa obsługa
                 if self.w_pracy and (self.app.symulowany_czas - self.start_dyzuru >= self.dlugosc_dyzuru):
-                    if self.pacjent is None:
+                    # ... po zakończeniu obsługi pacjenta ...
+                    with self.lock:
+                        self.pacjent = None
+
+                    # 🛌 Sprawdzenie końca dyżuru DOPIERO PO obsłudze pacjenta
+                    if self.w_pracy and (self.app.symulowany_czas - self.start_dyzuru >= self.dlugosc_dyzuru):
                         print(f"🛌 Pielęgniarka {self.id + 1} kończy dyżur i idzie na przerwę.")
                         self.w_pracy = False
                         self.start_przerwy = self.app.symulowany_czas
-                        continue
+
                     else:
                         # opóźnij przerwę – wróć do pętli, aż pacjent zostanie obsłużony
                         time.sleep(0.1)
@@ -665,11 +672,19 @@ class Symulacja:
             pacjent.status = "Zmarł"
             self.zmarli.append(pacjent)
             oddzial.zwolnij_lozko(pacjent)
+            if oddzial:
+                oddzial.zwolnij_lozko(pacjent)
+            else:
+                print(f"⚠️ Pacjent {pacjent.id} zmarł, ale nie był przypisany do żadnego oddziału.")
+
             print(f"💀 Pacjent {pacjent.id} zmarł.")
 
+
+
             # Oznacz graficznie jako zmarły
-            self.canvas.itemconfig(pacjent.oval, fill="black", outline="black")
-            self.canvas.itemconfig(pacjent.label, text=f"ZMARŁ")
+            # Oznacz graficznie jako zmarły – tylko obramowanie na czarno
+            self.canvas.itemconfig(pacjent.oval, outline="black", width=3)
+            self.canvas.itemconfig(pacjent.label, text="ZMARŁ")
 
             # Usuń z kolejki wejściowej
             with self.kolejka_wejsciowa.mutex:
@@ -727,7 +742,7 @@ class Symulacja:
         self.canvas.delete("pielegniarka_label")
         for i, pielegniarka in enumerate(self.pielegniarki):
             x_pos = pielegniarka.x
-            if not pielegniarka.w_pracy:
+            if not pielegniarka.w_pracy and pielegniarka.get_pacjent() is None:
                 kolor = "red"
             elif pielegniarka.niedostepna:
                 kolor = "orange"
