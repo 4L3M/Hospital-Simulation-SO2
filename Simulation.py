@@ -83,7 +83,7 @@ class Pacjent:
         # Aktualizuj tekst labela
         self.canvas.itemconfig(
             self.label,
-            text=f"K:{self.krytycznosc} | {self.status[:12]}"
+            text=f"Stan:{self.krytycznosc} | {self.status[:12]}"
         )
 
         # Kolor obramowania w zależności od stanu
@@ -628,7 +628,7 @@ class Symulacja:
             pacjent.krytycznosc = 0
 
     def popraw_krytycznosc(self, pacjent, ile):
-        pacjent.krytycznosc = min(pacjent.krytycznosc + ile, 200)  # max 200
+        pacjent.krytycznosc = min(pacjent.krytycznosc + ile, 250)  # max 200
 
     def sprawdz_zgon(self, pacjent, oddzial):
         if pacjent is None:
@@ -638,6 +638,17 @@ class Symulacja:
             self.zmarli.append(pacjent)
             oddzial.zwolnij_lozko(pacjent)
             print(f"💀 Pacjent {pacjent.id} zmarł.")
+            return True
+        return False
+
+    def sprawdz_wypis(self, pacjent, oddzial):
+        if pacjent is None:
+            return False
+        if pacjent.krytycznosc >= 250 and pacjent.status != "Wypisany":
+            pacjent.status = "Wypisany"
+            self.wypisani.append(pacjent)
+            oddzial.zwolnij_lozko(pacjent)
+            print(f"🏁 Pacjent {pacjent.id} został wypisany.")
             return True
         return False
 
@@ -694,9 +705,34 @@ class Symulacja:
                     continue
 
                 if pacjent:
+                    # 1. Obniż czas pobytu
+                    pacjent.czas_na_odziale -= 1
+
+                    # 2. Sprawdź zgon jako pierwszy (po zmianach!)
+                    if self.sprawdz_zgon(pacjent, oddzial):
+                        continue
+
+                    # 3. Sprawdź wypis
+                    if pacjent.krytycznosc >= 250: # stan sie polepszyl
+                        pacjent.status = "Wypisany"
+                        self.wypisani.append(pacjent)
+                        oddzial.zwolnij_lozko(pacjent)
+                        continue
+
+                    # Sprawdź, czy pacjent nie zmarł
+                    if pacjent.krytycznosc <= 0:
+                        pacjent.status = "Zmarł"
+                        self.zmarli.append(pacjent)
+                        oddzial.zwolnij_lozko(pacjent)
+                        continue
+
+                    # 4. Podawanie leków
+                    for lek_nazwa, info in pacjent.leki.items():
+                        ...
+
+                    # 5. Rysowanie
                     lx, ly = self.lozka_graficzne[(nazwa, i)]
                     pacjent.move_to(lx, ly)
-                    pacjent.czas_na_odziale -= 1
 
                     for lek_nazwa, info in pacjent.leki.items():
                         czest = info["czestotliwosc"]
@@ -706,6 +742,9 @@ class Symulacja:
                             if lek_nazwa in self.leki:
                                 if self.leki[lek_nazwa].zuzyj():
                                     pacjent.leki[lek_nazwa]["ostatnio"] = self.symulowany_czas
+                                    self.popraw_krytycznosc(pacjent, random.randint(3,10))  # poprawa krytyczności po podaniu leku
+                                    print(f"💊 Pacjent {pacjent.id} poprawił stan po {lek_nazwa}")
+
                                 else:
                                     pacjent.krytycznosc -= 10  # zmniejszenie krytyczności przy braku leku
                                     if random.random() < 0.1:
@@ -720,17 +759,6 @@ class Symulacja:
                                             zmiana = int(pacjent.czas_na_odziale * 0.1)
                                             pacjent.czas_na_odziale -= zmiana
                                             print(f"⏱️ Pacjent {pacjent.id} skrócił czas pobytu o {zmiana} minut")
-
-                    if pacjent.czas_na_odziale <= 0:
-                        pacjent.status = "Wypisany"
-                        self.wypisani.append(pacjent)
-                        oddzial.zwolnij_lozko(pacjent)
-
-                    if pacjent.krytycznosc <= 0:
-                        pacjent.status = "Zmarł"
-                        self.zmarli.append(pacjent)
-                        oddzial.zwolnij_lozko(pacjent)
-                        continue
 
             # Rysuj pacjentów oczekujących na łóżko pod łóżkami
             for j, pacjent in enumerate(list(oddzial.kolejka.queue)):
