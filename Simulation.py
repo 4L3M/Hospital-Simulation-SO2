@@ -56,6 +56,8 @@ class Pacjent:
             self.badania_do_wykonania = random.sample(BADANIA, ile)
         else:
             self.badania_do_wykonania = []
+
+        self.liczba_badan = 0
         self.czy_ma_lozko = False
         self.index_lozka = None
 
@@ -322,6 +324,7 @@ class LekarzDiagnosta(threading.Thread):
 
                 # Popraw stan pacjenta
                 self.app.popraw_krytycznosc(pacjent, random.randint(5, 20))
+                self.liczba_badan += 1
 
                 # Sprawdź, czy pacjent zmarł – jeśli tak, pomiń dalsze działania
                 oddzial = self.oddzialy.get(pacjent.oddzial_docelowy)
@@ -810,12 +813,8 @@ class Symulacja:
                         continue
 
                     # 4. Podawanie leków
-                    for lek_nazwa, info in pacjent.leki.items():
-                        ...
 
-                    # 5. Rysowanie
-                    lx, ly = self.lozka_graficzne[(nazwa, i)]
-                    pacjent.move_to(lx, ly)
+
 
                     for lek_nazwa, info in pacjent.leki.items():
                         czest = info["czestotliwosc"]
@@ -842,6 +841,10 @@ class Symulacja:
                                             zmiana = int(pacjent.czas_na_odziale * 0.1)
                                             pacjent.czas_na_odziale -= zmiana
                                             print(f"⏱️ Pacjent {pacjent.id} skrócił czas pobytu o {zmiana} minut")
+
+                    # 5. Rysowanie
+                    lx, ly = self.lozka_graficzne[(nazwa, i)]
+                    pacjent.move_to(lx, ly)
 
             # Rysuj pacjentów oczekujących na łóżko pod łóżkami
             for j, pacjent in enumerate(list(oddzial.kolejka.queue)):
