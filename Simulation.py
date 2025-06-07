@@ -797,7 +797,7 @@ class Symulacja:
         try:
             for i, pacjent in enumerate(list(self.kolejka_wejsciowa.queue)):
                 pacjent.move_to(50 + i * 30, 50)
-                self.obniz_krytycznosc(pacjent, 0.5)  # zmniejszenie krytyczności co tick // gorszy stan
+                self.obniz_krytycznosc(pacjent, 0.2)  # zmniejszenie krytyczności co tick // gorszy stan
 
             # Licznik pacjentów u pielęgniarek
             liczniki_pacjentow = [0 for _ in self.pielegniarki]
@@ -852,7 +852,7 @@ class Symulacja:
 
                 for j, p in enumerate(gabinet.get_kolejka()):
                     p.move_to(gabinet.x + j * 18, gabinet.y + 65)
-                    self.obniz_krytycznosc(p, 1)  # zmniejszenie krytyczności co tick
+                    self.obniz_krytycznosc(p, 0.2)  # zmniejszenie krytyczności co tick
 
                     # 🔼 liczba oczekujących (nad gabinetem)
                 self.canvas.create_text(
@@ -935,6 +935,15 @@ class Symulacja:
                                             #     pacjent.czas_na_odziale -= zmiana
                                             #     print(f"⏱️ Pacjent {pacjent.id} skrócił czas pobytu o {zmiana} minut")
 
+                        # # Losowe dodanie badania
+                        # if random.random() < 0.002:  # niska szansa co tick
+                        #     dostepne = list(set(BADANIA) - set(pacjent.badania_do_wykonania))
+                        #     if dostepne:
+                        #         nowe_badanie = random.choice(dostepne)
+                        #         pacjent.badania_do_wykonania.append(nowe_badanie)
+                        #         self.gabinety_badan[nowe_badanie].dodaj_pacjenta(pacjent)
+                        #         print(f"🧪 Pacjent {pacjent.id} (łóżko) dostał nowe badanie: {nowe_badanie}")
+
                         # 5. Rysowanie
                         lx, ly = self.lozka_graficzne[(nazwa, i)]
                         pacjent.move_to(lx, ly)
@@ -946,7 +955,7 @@ class Symulacja:
                     x = 100 + idx * 250 + (j % 3) * 40  # 3 pacjentów w rzędzie, odstęp 40
                     y = 235 + (j // 3) * 20  # każdy rząd niżej o 20px
                     pacjent.move_to(x, y)
-                    self.obniz_krytycznosc(pacjent, 0.5)  # zmniejszenie stabilnosci co tick
+                    self.obniz_krytycznosc(pacjent, 0.2)  # zmniejszenie stabilnosci co tick
 
                 # pacjenci gotowi po konsultacji -> łóżka
                 for lekarz in oddzial.lekarze:
@@ -967,7 +976,7 @@ class Symulacja:
                         if pacjent is None or pacjent.status == "Zmarł":
                             continue
                         p.move_to(lekarz.x + 45 + j * 20, lekarz.y - 10)  # kolejka z prawej strony gabinetu
-                        self.obniz_krytycznosc(p, 0.5)  # zmniejszenie krytyczności co tick
+                        self.obniz_krytycznosc(p, 0.2)  # zmniejszenie krytyczności co tick
 
                     # pacjenci wracający na łóżko po badaniu
                 for pacjent in self.pacjenci:
