@@ -90,7 +90,8 @@ class Pacjent:
                 self.canvas.move(self.label, dx, dy)
 
                 # Aktualizacja tekstu labela
-                self.canvas.itemconfig(self.label, text=f"{int(self.krytycznosc)} | {self.status[:4]}")
+                oddzial = self.status.split()[-1]  # wyciągamy nazwę oddziału z końca statusu
+                self.canvas.itemconfig(self.label, text=f" {self.id} || {int(self.krytycznosc)} | {oddzial}")
 
                 # Kolor obramowania w zależności od stanu
                 if self.krytycznosc > 120:
@@ -316,8 +317,9 @@ class GabinetBadania:
             return self.aktywny_pacjent
 
 class LekarzDiagnosta(threading.Thread):
-    def __init__(self, gabinet, oddzialy):
+    def __init__(self, gabinet, oddzialy, app_ref):
         super().__init__()
+        self.app = app_ref
         self.gabinet = gabinet
         self.oddzialy = oddzialy
         self.stop_event = threading.Event()
@@ -348,7 +350,7 @@ class LekarzDiagnosta(threading.Thread):
                 if self.gabinet.nazwa in pacjent.badania_do_wykonania:
                     pacjent.badania_do_wykonania.remove(self.gabinet.nazwa)
 
-                pacjent.move_to(self.gabinet.x, self.gabinet.y + 40)
+                pacjent.move_to(self.gabinet.x, self.gabinet.y - 40)
                 self.gabinet.set_aktywny(None)
 
                 if pacjent.krytycznosc <= 0:
@@ -363,11 +365,16 @@ class LekarzDiagnosta(threading.Thread):
                     kolejny = pacjent.badania_do_wykonania[0]
                     self.app.gabinety_badan[kolejny].dodaj_pacjenta(pacjent)
 
+
                 elif oddzial:
-                    pacjent.status = f"{oddzial.nazwa} (oczekuje)"
-                    with oddzial.lock:
-                        if pacjent not in list(oddzial.kolejka.queue):
-                            oddzial.kolejka.put(pacjent)
+                    # Najpierw spróbuj zakwaterować
+                    if oddzial.zakwateruj_po_konsultacji(pacjent):
+                        pacjent.status = f"{oddzial.nazwa} - łóżko {pacjent.index_lozka + 1}"
+                    else:
+                        pacjent.status = f"{oddzial.nazwa} (oczekuje)"
+                        with oddzial.lock:
+                            if pacjent not in list(oddzial.kolejka.queue):
+                                oddzial.kolejka.put(pacjent)
 
             except Exception as e:
                 print(f"[Diagnosta] Błąd podczas przetwarzania pacjenta: {e}")
@@ -643,7 +650,7 @@ class Symulacja:
             gabinet.label_id = label
         self.diagności = []
         for gabinet in self.gabinety_badan.values():
-            diagnosta = LekarzDiagnosta(gabinet, self.oddzialy)
+            diagnosta = LekarzDiagnosta(gabinet, self.oddzialy, self)
             diagnosta.start()
             self.diagności.append(diagnosta)
 
@@ -987,6 +994,25 @@ class Symulacja:
                             if pacjent not in oddzial.kolejka.queue and pacjent not in oddzial.lozka:
                                 oddzial.zakwateruj_po_konsultacji(pacjent)
                                 break
+
+            # Zakwateruj pacjentów z kolejki, jeśli są wolne łóżka
+            with oddzial.lock:
+                for i in range(len(oddzial.lozka)):
+                    if oddzial.lozka[i] is None and not oddzial.kolejka.empty():
+                        nowy = oddzial.kolejka.get()
+                        oddzial.lozka[i] = nowy
+                        nowy.status = f"{oddzial.nazwa} - łóżko {i + 1}"
+                        nowy.czy_ma_lozko = True
+                        nowy.index_lozka = i
+                        nowy.leki = {}
+
+                        # przypisz leki jak przy pierwszym zakwaterowaniu
+                        for lek_nazwa in random.sample(list(self.leki.keys()), random.randint(1, 4)):
+                            czestotliwosc = random.choice([8, 12, 24])
+                            nowy.leki[lek_nazwa] = {
+                                "czestotliwosc": czestotliwosc,
+                                "ostatnio": self.symulowany_czas
+                            }
 
             for lekarze_list in self.lekarze.values():
                 for lekarz in lekarze_list:
