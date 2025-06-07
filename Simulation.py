@@ -350,7 +350,7 @@ class LekarzDiagnosta(threading.Thread):
                 if self.gabinet.nazwa in pacjent.badania_do_wykonania:
                     pacjent.badania_do_wykonania.remove(self.gabinet.nazwa)
 
-                pacjent.move_to(self.gabinet.x, self.gabinet.y - 40)
+                pacjent.move_to(self.gabinet.x, self.gabinet.y + 30)
                 self.gabinet.set_aktywny(None)
 
                 if pacjent.krytycznosc <= 0:
@@ -692,8 +692,8 @@ class Symulacja:
         for i, nazwa in enumerate(ODDZIALY):
             self.canvas.create_text(100 + i * 250, 160, text=f"Oddział {nazwa}", font=("Arial", 10))
             self.canvas.create_text(100 + i * 250, 400, text=f"Lekarz {nazwa}", font=("Arial", 9))
-        self.canvas.create_text(1600, 700, text="Wypisani", font=("Arial", 10))
-        self.canvas.create_text(1700, 700, text="Kostnica", font=("Arial", 10))
+        self.canvas.create_text(1600, 750, text="Wypisani", font=("Arial", 10))
+        self.canvas.create_text(1700, 750, text="Kostnica", font=("Arial", 10))
         self.canvas.create_text(1650, 50, text="Stan magazynu leków", font=("Arial", 10, "bold"))
 
         # for i in range(PIELEGNIARKI):
@@ -856,7 +856,7 @@ class Symulacja:
 
                     # 🔼 liczba oczekujących (nad gabinetem)
                 self.canvas.create_text(
-                    gabinet.x, gabinet.y - 35,
+                    gabinet.x, gabinet.y + 100,
                     text=f"{len(gabinet.get_kolejka())} w kolejce",
                     font=("Arial", 8),
                     fill="black",
@@ -866,7 +866,7 @@ class Symulacja:
                 # 🔽 status aktywnego pacjenta (pod kolejką)
                 aktywny = "1 w gabinecie" if gabinet.get_aktywny() else "pusto"
                 self.canvas.create_text(
-                    gabinet.x, gabinet.y + 100,
+                    gabinet.x, gabinet.y - 35,
                     text=aktywny,
                     font=("Arial", 8),
                     fill="gray",
@@ -1028,13 +1028,13 @@ class Symulacja:
             # Rysowanie wypisanych pacjentów
             for i, pacjent in enumerate(self.wypisani):
                 x = 1600 + (i % 5) * 20
-                y = 700 + (i // 5) * 20
+                y = 770 + (i // 5) * 20
                 pacjent.move_to(x, y)
 
             # Rysowanie zmarłych pacjentów
             for i, pacjent in enumerate(self.zmarli):
                 x = 1700 + (i % 5) * 20
-                y = 700 + (i // 5) * 20
+                y = 770 + (i // 5) * 20
                 pacjent.move_to(x, y)
 
             # AKTUALIZACJA CZASU
