@@ -10,6 +10,10 @@ from queue import Empty
 
 
 """
+-statystyki!!!
+- dobrac paramtery krytycznosci obnizania i poprawy
+- pielegniarki rzadziej cos innego maja robic
+ 
 - pacjenci ktorzy sa od razu do lekarza kierowani
  za dlugo sie wyswietlaja pod pielegniarka mimo ze juz go tam nie ma!!!
 
@@ -340,7 +344,7 @@ class LekarzDiagnosta(threading.Thread):
                 pacjent.move_to(self.gabinet.x, self.gabinet.y)
                 time.sleep(random.uniform(3, 5))
 
-                self.app.popraw_krytycznosc(pacjent, random.randint(5, 20))
+                self.app.popraw_krytycznosc(pacjent, random.randint(10, 20))
 
                 oddzial = self.oddzialy.get(pacjent.oddzial_docelowy)
                 if oddzial and self.app.sprawdz_zgon(pacjent, oddzial):
@@ -917,7 +921,7 @@ class Symulacja:
                                 if lek_nazwa in self.leki:
                                     if self.leki[lek_nazwa].zuzyj():
                                         pacjent.leki[lek_nazwa]["ostatnio"] = self.symulowany_czas
-                                        self.popraw_krytycznosc(pacjent, random.randint(3,10))  # poprawa krytyczności po podaniu leku
+                                        self.popraw_krytycznosc(pacjent, random.randint(10,50))  # poprawa krytyczności po podaniu leku
                                         print(f"💊 Pacjent {pacjent.id} poprawił stan po {lek_nazwa}")
 
                                     else:
