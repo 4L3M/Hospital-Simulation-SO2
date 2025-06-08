@@ -1,3 +1,7 @@
+import csv
+import os
+
+
 import traceback
 from cProfile import label
 import tkinter as tk
@@ -9,15 +13,14 @@ import sys
 from queue import Empty
 
 
+
 """
--statystyki!!!
-- dobrac paramtery krytycznosci obnizania i poprawy
-- pielegniarki rzadziej cos innego maja robic
+
  
-- pacjenci ktorzy sa od razu do lekarza kierowani
+OK - pacjenci ktorzy sa od razu do lekarza kierowani
  za dlugo sie wyswietlaja pod pielegniarka mimo ze juz go tam nie ma!!!
 
-- zmienic proporcje spadku i wzrostu krytyczności pacjenta
+OK - zmienic proporcje spadku i wzrostu krytyczności pacjenta
 
 Dodać:
 OK - zmienna liczba pacjentów!,pielęgniarek, lekarzy
@@ -49,7 +52,7 @@ BADANIA = ["RTG", "USG", "EKG", "KREW", "Konsultacja", "Kolonoskopia", "Gastrosk
 P_BADANIA = 0.7
 
 class Pacjent:
-    def __init__(self, id, canvas):
+    def __init__(self, id, canvas, app):
         self.id = id
         self.krytycznosc = random.randint(50, 200)  # 0 - śmierć, im mniej tym większa szansa na śmierć
         self.status = "Izba"
@@ -81,6 +84,15 @@ class Pacjent:
             tags=f"label_pacjent_{self.id}"
         )
 
+        self.historia = {
+            "czas_w_szpitalu": 0,
+            "czas_oczekiwania_na_lozko": 0,
+            "czas_w_izbie": 0,
+            "czas_u_pielegniarki": 0,
+            "leki_przyjete": {},
+            "badania": [],
+            "czas_przybycia": app.symulowany_czas if hasattr(app, "symulowany_czas") else 0
+        }
 
         print(f"Pacjent {self.id} ({self.status}) - badania: {self.badania_do_wykonania}, czas na oddziale: {self.czas_na_odziale}")
 
@@ -237,12 +249,13 @@ class Lekarz(threading.Thread):
 
 
 class Oddzial:
-    def __init__(self, nazwa, liczba_lozek, lekarze):
+    def __init__(self, nazwa, liczba_lozek, lekarze, app):
         self.nazwa = nazwa
         self.lozka = [None for _ in range(liczba_lozek)]
         self.kolejka = Queue()
         self.lock = MUTEX
         self.lekarze = lekarze # lista lekarzy na oddziale
+        self.app = app
 
     def przyjmij_pacjenta(self, pacjent):
         losowy_lekarz = random.choice(self.lekarze)
@@ -261,6 +274,8 @@ class Oddzial:
                     self.lozka[i] = pacjent
                     pacjent.status = f"{self.nazwa} - łóżko {i + 1}"
                     pacjent.czy_ma_lozko = True
+                    pacjent.historia["czas_oczekiwania_na_lozko"] = self.app.symulowany_czas - pacjent.historia[
+                        "czas_przybycia"]
                     pacjent.index_lozka = i
 
                     pacjent.leki = {}
@@ -341,10 +356,11 @@ class LekarzDiagnosta(threading.Thread):
 
                 self.gabinet.set_aktywny(pacjent)
                 pacjent.status = f"Badanie: {self.gabinet.nazwa}"
+                pacjent.historia["badania"].append(self.gabinet.nazwa)
                 pacjent.move_to(self.gabinet.x, self.gabinet.y)
                 time.sleep(random.uniform(3, 5))
 
-                self.app.popraw_krytycznosc(pacjent, random.randint(10, 20))
+                self.app.popraw_krytycznosc(pacjent, random.randint(10, 50))
 
                 oddzial = self.oddzialy.get(pacjent.oddzial_docelowy)
                 if oddzial and self.app.sprawdz_zgon(pacjent, oddzial):
@@ -402,7 +418,7 @@ class Pielegniarka(threading.Thread):
         self.w_pracy = True
         self.start_przerwy = None
 
-        self.niedostepna = random.random() < 0.3  # czy pielęgniarka jest niedostępna
+        self.niedostepna = random.random() < 0.2  # czy pielęgniarka jest niedostępna
 
         self.canvas = canvas
         self.oddzialy = oddzialy
@@ -542,7 +558,7 @@ class Pielegniarka(threading.Thread):
                 time.sleep(0.1)
 
     def symuluj_niedostepnosc(self):
-        time.sleep(random.randint(1, 10))  # np. 10-20 sekund
+        time.sleep(random.randint(1, 5))  # np. 10-20 sekund
         self.niedostepna = False
         print(f"✅ Pielęgniarka {self.id + 1} wróciła do przyjmowania pacjentów")
 
@@ -588,7 +604,27 @@ class Symulacja:
         self.symulowany_czas = 8 * 60
         self.symulacja_tick = 0
 
-        self.pacjenci = [Pacjent(i, self.canvas) for i in range(PACJENTÓW)]
+        self.statystyki = {
+            "zgonów": 0,
+            "wypisanych": 0,
+            "średni_czas_ocz_na_lozko": [],
+            "średni_czas_w_szpitalu": [],
+            "leki": {},
+            "badania": {}
+        }
+
+        self.csv_folder = "statystyki"
+        os.makedirs(self.csv_folder, exist_ok=True)
+        self.csv_file = os.path.join(self.csv_folder, f"statystyki_{int(time.time())}.csv")
+
+        with open(self.csv_file, mode="w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "czas", "zgonów", "wypisanych", "średni czas ocz. na łóżko (min)",
+                "średni czas w szpitalu (min)", "leki", "badania"
+            ])
+
+        self.pacjenci = [Pacjent(i, self.canvas, self) for i in range(PACJENTÓW)]
         self.kolejka_wejsciowa = Queue()
         for pacjent in self.pacjenci:
             self.kolejka_wejsciowa.put(pacjent)
@@ -619,7 +655,7 @@ class Symulacja:
                 self.canvas.coords(lekarz.label_id, lekarz.x, lekarz.y)
 
         self.oddzialy = {
-            nazwa: Oddzial(nazwa, liczba_lozek=random.randint(3, 15), lekarze=self.lekarze[nazwa])
+            nazwa: Oddzial(nazwa, liczba_lozek=random.randint(3, 15), lekarze=self.lekarze[nazwa], app=self)
             for nazwa in ODDZIALY
         }
 
@@ -685,7 +721,7 @@ class Symulacja:
             czas = random.uniform(1, 2)
             time.sleep(czas)
 
-            nowy = Pacjent(self.nastepny_id, self.canvas)
+            nowy = Pacjent(self.nastepny_id, self.canvas, self)
             self.nastepny_id += 1
             self.pacjenci.append(nowy)
             self.kolejka_wejsciowa.put(nowy)
@@ -696,8 +732,8 @@ class Symulacja:
         for i, nazwa in enumerate(ODDZIALY):
             self.canvas.create_text(100 + i * 250, 160, text=f"Oddział {nazwa}", font=("Arial", 10))
             self.canvas.create_text(100 + i * 250, 400, text=f"Lekarz {nazwa}", font=("Arial", 9))
-        self.canvas.create_text(1600, 750, text="Wypisani", font=("Arial", 10))
-        self.canvas.create_text(1700, 750, text="Kostnica", font=("Arial", 10))
+        self.canvas.create_text(1550, 750, text="Wypisani", font=("Arial", 10))
+        self.canvas.create_text(1750, 750, text="Kostnica", font=("Arial", 10))
         self.canvas.create_text(1650, 50, text="Stan magazynu leków", font=("Arial", 10, "bold"))
 
         # for i in range(PIELEGNIARKI):
@@ -733,6 +769,7 @@ class Symulacja:
     def sprawdz_zgon(self, pacjent, oddzial):
         if pacjent and pacjent.krytycznosc <= 0 and pacjent.status != "Zmarł":
             pacjent.status = "Zmarł"
+            self.statystyki["zgonów"] += 1
             self.zmarli.append(pacjent)
 
             #oddzial.zwolnij_lozko(pacjent)
@@ -790,7 +827,19 @@ class Symulacja:
         if pacjent is None:
             return False
         if pacjent.krytycznosc >= 250 and pacjent.status != "Wypisany":
+            self.statystyki["wypisanych"] += 1
+            czas = pacjent.historia.get("czas_w_szpitalu", 0)
+            self.statystyki["średni_czas_w_szpitalu"].append(czas)
+            ocz = pacjent.historia.get("czas_oczekiwania_na_lozko", 0)
+            self.statystyki["średni_czas_ocz_na_lozko"].append(ocz)
+
+            for lek, liczba in pacjent.historia["leki_przyjete"].items():
+                self.statystyki["leki"][lek] = self.statystyki["leki"].get(lek, 0) + liczba
+            for bad in pacjent.historia["badania"]:
+                self.statystyki["badania"][bad] = self.statystyki["badania"].get(bad, 0) + 1
+
             pacjent.status = "Wypisany"
+            pacjent.historia["czas_w_szpitalu"] = self.symulowany_czas - pacjent.historia["czas_przybycia"]
             self.wypisani.append(pacjent)
             oddzial.zwolnij_lozko(pacjent)
             print(f"🏁 Pacjent {pacjent.id} został wypisany.")
@@ -799,6 +848,9 @@ class Symulacja:
 
     def update_gui(self):
         try:
+            if self.symulowany_czas % (60 * 24) == 0:
+                self.zapisz_statystyki_csv()
+
             for i, pacjent in enumerate(list(self.kolejka_wejsciowa.queue)):
                 pacjent.move_to(50 + i * 30, 50)
                 self.obniz_krytycznosc(pacjent, 0.2)  # zmniejszenie krytyczności co tick // gorszy stan
@@ -868,7 +920,7 @@ class Symulacja:
                 )
 
                 # 🔽 status aktywnego pacjenta (pod kolejką)
-                aktywny = "1 w gabinecie" if gabinet.get_aktywny() else "pusto"
+                aktywny = f"1 w gabinecie: {pacjent.id}" if gabinet.get_aktywny() else "pusto"
                 self.canvas.create_text(
                     gabinet.x, gabinet.y - 35,
                     text=aktywny,
@@ -909,15 +961,18 @@ class Symulacja:
                             oddzial.zwolnij_lozko(pacjent)
                             continue
 
+                        # Polepsz stan pacjenta kiedy jest na łóżku
+                        if pacjent:
+                            self.popraw_krytycznosc(pacjent,0.1)  # poprawa krytyczności co tick
+
                         # 4. Podawanie leków
-
-
-
                         for lek_nazwa, info in pacjent.leki.items():
                             czest = info["czestotliwosc"]
                             ostatni = info["ostatnio"]
 
                             if self.symulowany_czas - ostatni >= czest * 60:
+                                pacjent.historia["leki_przyjete"][lek_nazwa] = pacjent.historia["leki_przyjete"].get(
+                                    lek_nazwa, 0) + 1
                                 if lek_nazwa in self.leki:
                                     if self.leki[lek_nazwa].zuzyj():
                                         pacjent.leki[lek_nazwa]["ostatnio"] = self.symulowany_czas
@@ -940,13 +995,13 @@ class Symulacja:
                                             #     print(f"⏱️ Pacjent {pacjent.id} skrócił czas pobytu o {zmiana} minut")
 
                         # # Losowe dodanie badania
-                        # if random.random() < 0.002:  # niska szansa co tick
-                        #     dostepne = list(set(BADANIA) - set(pacjent.badania_do_wykonania))
-                        #     if dostepne:
-                        #         nowe_badanie = random.choice(dostepne)
-                        #         pacjent.badania_do_wykonania.append(nowe_badanie)
-                        #         self.gabinety_badan[nowe_badanie].dodaj_pacjenta(pacjent)
-                        #         print(f"🧪 Pacjent {pacjent.id} (łóżko) dostał nowe badanie: {nowe_badanie}")
+                        if random.random() < 0.002:  # niska szansa co tick
+                            dostepne = list(set(BADANIA) - set(pacjent.badania_do_wykonania))
+                            if dostepne:
+                                nowe_badanie = random.choice(dostepne)
+                                pacjent.badania_do_wykonania.append(nowe_badanie)
+                                self.gabinety_badan[nowe_badanie].dodaj_pacjenta(pacjent)
+                                print(f"🧪 Pacjent {pacjent.id} (łóżko) dostał nowe badanie: {nowe_badanie}")
 
                         # 5. Rysowanie
                         lx, ly = self.lozka_graficzne[(nazwa, i)]
@@ -1040,14 +1095,14 @@ class Symulacja:
 
             # Rysowanie wypisanych pacjentów
             for i, pacjent in enumerate(self.wypisani):
-                x = 1600 + (i % 5) * 20
-                y = 770 + (i // 5) * 20
+                x = 1550 + (i % 7) * 20
+                y = 770 + (i // 7) * 35
                 pacjent.move_to(x, y)
 
             # Rysowanie zmarłych pacjentów
             for i, pacjent in enumerate(self.zmarli):
-                x = 1700 + (i % 5) * 20
-                y = 770 + (i // 5) * 20
+                x = 1750 + (i % 5) * 20
+                y = 770 + (i // 5) * 35
                 pacjent.move_to(x, y)
 
             # AKTUALIZACJA CZASU
@@ -1074,6 +1129,26 @@ class Symulacja:
             print(f"Błąd aktualizacji GUI: {e}")
             self.canvas.after(100, self.update_gui)
 
+    def zapisz_statystyki_csv(self):
+        sr_ocz = (sum(self.statystyki["średni_czas_ocz_na_lozko"]) / len(self.statystyki["średni_czas_ocz_na_lozko"])
+                  if self.statystyki["średni_czas_ocz_na_lozko"] else 0)
+        sr_szpit = (sum(self.statystyki["średni_czas_w_szpitalu"]) / len(self.statystyki["średni_czas_w_szpitalu"])
+                    if self.statystyki["średni_czas_w_szpitalu"] else 0)
+
+        leki_str = "; ".join([f"{k}: {v}" for k, v in self.statystyki["leki"].items()])
+        badania_str = "; ".join([f"{k}: {v}" for k, v in self.statystyki["badania"].items()])
+
+        with open(self.csv_file, mode="a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                self.symulowany_czas,
+                self.statystyki["zgonów"],
+                self.statystyki["wypisanych"],
+                round(sr_ocz, 2),
+                round(sr_szpit, 2),
+                leki_str,
+                badania_str
+            ])
 
     def zakoncz_program(self):
         for p in self.pielegniarki:
