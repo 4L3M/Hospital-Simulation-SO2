@@ -1,0 +1,574 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <map>
+#include <vector>
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <queue>
+#include <chrono>
+#include <random>
+#include <string>
+#include <functional>
+#include <iomanip>
+#include <filesystem>
+#include <unordered_map>
+#include <numeric>
+#include <set>
+
+#include <cstdlib>
+
+class Patient;
+class Doctor;
+class Nurse;
+class Ward;
+class ExaminationRoom;
+class Diagnostician;
+class Medication;
+
+namespace fs = std::filesystem;
+
+
+const std::vector<std::string> TESTS = {
+    "RTG", "USG", "EKG", "KREW", "Konsultacja",
+    "Kolonoskopia", "Gastroskopia", "CT", "MR", "Biopsja"
+};
+
+const std::vector<std::string> COLORS = {
+    "Red", "Blue", "Green", "Orange", "Purple",
+    "Brown", "Pink", "Gray", "Olive", "Cyan"
+};
+
+float TEST_PROBABILITY = 0.7f;
+std::mt19937 rng(static_cast<unsigned>(std::time(nullptr)));
+std::uniform_real_distribution<float> prob_dist(0.0, 1.0);
+std::uniform_int_distribution<int> crit_dist(50, 200);
+std::mutex global_mutex;
+
+class Patient {
+public:
+    int id;
+    int criticality;
+    std::string status;
+    std::string target_ward;
+    std::vector<std::string> tests_needed;
+    bool has_bed = false;
+    int bed_index = -1;
+    std::string color;
+
+    struct History {
+        int time_in_hospital = 0;
+        int time_waiting_for_bed = 0;
+        int time_in_ward = 0;
+        int time_with_nurse = 0;
+        std::map<std::string, int> meds_given;
+        std::vector<std::string> tests_done;
+        int time_arrived = 0;
+    } history;
+
+    Patient(int _id) : id(_id), criticality(crit_dist(rng)), status("ER") {
+        color = COLORS[id % COLORS.size()];
+        if (prob_dist(rng) < TEST_PROBABILITY) {
+            std::uniform_int_distribution<int> num_tests_dist(1, 4);
+            int num_tests = num_tests_dist(rng);
+            std::set<int> selected;
+            std::uniform_int_distribution<int> test_idx(0, TESTS.size() - 1);
+            while (selected.size() < static_cast<size_t>(num_tests)) {
+                selected.insert(test_idx(rng));
+            }
+            for (int idx : selected) {
+                tests_needed.push_back(TESTS[idx]);
+            }
+        }
+        std::cout << "[Patient] ID: " << id << ", Crit: " << criticality
+            << ", Tests: ";
+        for (const auto& test : tests_needed) std::cout << test << " ";
+        std::cout << std::endl;
+    }
+
+    void move_to(int x, int y) {
+        std::lock_guard<std::mutex> lock(global_mutex);
+        std::cout << "[Move] Patient " << id << " moved to position ("
+            << x << ", " << y << ")" << std::endl;
+    }
+};
+
+class Medication {
+public:
+    std::string name;
+    int quantity;
+    int reorder_threshold;
+    int reorder_amount;
+    std::mutex med_mutex;
+
+    Medication(const std::string& n)
+        : name(n),
+        quantity(std::uniform_int_distribution<int>(3, 10)(rng)),
+        reorder_threshold(std::uniform_int_distribution<int>(2, 5)(rng)),
+        reorder_amount(std::uniform_int_distribution<int>(5, 10)(rng))
+    {}
+
+    bool consume() {
+        std::lock_guard<std::mutex> lock(med_mutex);
+        if (quantity <= 0) {
+            std::cout << "[Medication] " << name << " unavailable!" << std::endl;
+            return false;
+        }
+        quantity--;
+        std::cout << "[Medication] Used 1 " << name << ". Remaining: " << quantity << std::endl;
+        if (quantity < reorder_threshold) {
+            reorder();
+        }
+        return true;
+    }
+
+    void reorder() {
+        std::cout << "[Medication] Reordering " << reorder_amount << " units of " << name << std::endl;
+        quantity += reorder_amount;
+    }
+};
+
+class Doctor {
+public:
+    std::string ward_name;
+    int doctor_id;
+    int shift_length_minutes;
+    std::atomic<bool> on_duty{ true };
+    std::queue<Patient*> queue;
+    std::mutex queue_mutex;
+    std::thread worker;
+    std::atomic<bool> stop_flag{ false };
+
+    Doctor(const std::string& ward, int id)
+        : ward_name(ward), doctor_id(id) {
+        std::vector<int> shift_options = { 360, 480, 720, 1440 };
+        std::uniform_int_distribution<int> shift_dist(0, shift_options.size() - 1);
+        shift_length_minutes = shift_options[shift_dist(rng)];
+        worker = std::thread(&Doctor::run, this);
+    }
+
+    void consult(Patient* p) {
+        std::lock_guard<std::mutex> lock(queue_mutex);
+        queue.push(p);
+    }
+
+    void run() {
+        using namespace std::chrono_literals;
+        auto shift_start = std::chrono::steady_clock::now();
+        while (!stop_flag) {
+            {
+                std::lock_guard<std::mutex> lock(queue_mutex);
+                if (!queue.empty()) {
+                    Patient* p = queue.front();
+                    queue.pop();
+                    if (p && p->status != "Deceased") {
+                        std::cout << "[Doctor] Consulting patient " << p->id << " in ward " << ward_name << std::endl;
+                        p->status = "Consulting - " + ward_name;
+                        std::this_thread::sleep_for(2s + std::chrono::milliseconds(std::uniform_int_distribution<int>(0, 2000 - 1)(rng)
+                        ));
+                        p->status = ward_name + " - Ready";
+                        std::cout << "[Doctor] Patient " << p->id << " consultation done." << std::endl;
+                    }
+                }
+            }
+
+            std::this_thread::sleep_for(100ms);
+            auto now = std::chrono::steady_clock::now();
+            if (on_duty && std::chrono::duration_cast<std::chrono::minutes>(now - shift_start).count() >= shift_length_minutes) {
+                on_duty = false;
+                std::cout << "[Doctor] Doctor " << doctor_id << " on break." << std::endl;
+                std::this_thread::sleep_for(12min);
+                shift_start = std::chrono::steady_clock::now();
+                on_duty = true;
+                std::cout << "[Doctor] Doctor " << doctor_id << " back on duty." << std::endl;
+            }
+        }
+    }
+
+    void stop() {
+        stop_flag = true;
+        if (worker.joinable()) {
+            worker.join();
+        }
+    }
+
+    ~Doctor() {
+        stop();
+    }
+};
+
+class Ward {
+public:
+    std::string name;
+    std::vector<Patient*> beds;
+    std::queue<Patient*> waiting_queue;
+    std::vector<Doctor*> doctors;
+    std::mutex ward_mutex;
+
+    Ward(const std::string& ward_name, int bed_count, const std::vector<Doctor*>& doc_list)
+        : name(ward_name), doctors(doc_list) {
+        beds.resize(bed_count, nullptr);
+    }
+
+    void assign_patient(Patient* p) {
+        std::lock_guard<std::mutex> lock(ward_mutex);
+        for (Doctor* doc : doctors) {
+            doc->consult(p);
+            return;
+        }
+    }
+
+    bool admit_after_consult(Patient* p) {
+        std::lock_guard<std::mutex> lock(ward_mutex);
+        for (size_t i = 0; i < beds.size(); ++i) {
+            if (beds[i] == nullptr) {
+                beds[i] = p;
+                p->status = name + " - Bed " + std::to_string(i + 1);
+                p->has_bed = true;
+                p->bed_index = static_cast<int>(i);
+                std::cout << "[Ward] Patient " << p->id << " admitted to bed " << i + 1 << " in " << name << std::endl;
+                return true;
+            }
+        }
+        waiting_queue.push(p);
+        p->status = name + " (Waiting)";
+        std::cout << "[Ward] No beds available. Patient " << p->id << " queued in " << name << std::endl;
+        return false;
+    }
+
+    void release_bed(Patient* p) {
+        std::lock_guard<std::mutex> lock(ward_mutex);
+        for (size_t i = 0; i < beds.size(); ++i) {
+            if (beds[i] == p) {
+                beds[i] = nullptr;
+                std::cout << "[Ward] Patient " << p->id << " released from bed " << i + 1 << " in " << name << std::endl;
+                if (!waiting_queue.empty()) {
+                    Patient* next = waiting_queue.front();
+                    waiting_queue.pop();
+                    beds[i] = next;
+                    next->status = name + " - Bed " + std::to_string(i + 1);
+                    next->has_bed = true;
+                    next->bed_index = static_cast<int>(i);
+                    std::cout << "[Ward] Patient " << next->id << " admitted from queue to bed " << i + 1 << std::endl;
+                }
+                return;
+            }
+        }
+    }
+};
+
+class Nurse {
+public:
+    int id;
+    std::queue<Patient*> input_queue;
+    std::mutex queue_mutex;
+    std::thread worker;
+    std::atomic<bool> stop_flag{ false };
+
+    Nurse(int nurse_id) : id(nurse_id) {
+        worker = std::thread(&Nurse::run, this);
+    }
+
+    void add_patient(Patient* p) {
+        std::lock_guard<std::mutex> lock(queue_mutex);
+        input_queue.push(p);
+    }
+
+    void run() {
+        using namespace std::chrono_literals;
+        while (!stop_flag) {
+            Patient* p = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(queue_mutex);
+                if (!input_queue.empty()) {
+                    p = input_queue.front();
+                    input_queue.pop();
+                }
+            }
+
+            if (p) {
+                std::cout << "[Nurse] Attending patient " << p->id << std::endl;
+                p->status = "Attended by Nurse " + std::to_string(id);
+                std::this_thread::sleep_for(2s + std::chrono::milliseconds(std::uniform_int_distribution<int>(0, 2000 - 1)(rng)
+                ));
+                std::cout << "[Nurse] Finished attending patient " << p->id << std::endl;
+            }
+            else {
+                std::this_thread::sleep_for(100ms);
+            }
+        }
+    }
+
+    void stop() {
+        stop_flag = true;
+        if (worker.joinable()) {
+            worker.join();
+        }
+    }
+
+    ~Nurse() {
+        stop();
+    }
+};
+
+class ExaminationRoom {
+public:
+    std::string name;
+    int x, y;
+    std::queue<Patient*> queue;
+    Patient* active_patient = nullptr;
+    std::mutex mutex;
+
+    ExaminationRoom(const std::string& room_name, int xpos, int ypos)
+        : name(room_name), x(xpos), y(ypos) {}
+
+    void add_patient(Patient* p) {
+        std::lock_guard<std::mutex> lock(mutex);
+        queue.push(p);
+    }
+
+    std::vector<Patient*> get_queue_snapshot() {
+        std::lock_guard<std::mutex> lock(mutex);
+        std::vector<Patient*> snapshot;
+        std::queue<Patient*> temp = queue;
+        while (!temp.empty()) {
+            snapshot.push_back(temp.front());
+            temp.pop();
+        }
+        return snapshot;
+    }
+
+    void set_active_patient(Patient* p) {
+        std::lock_guard<std::mutex> lock(mutex);
+        active_patient = p;
+    }
+
+    Patient* get_active_patient() {
+        std::lock_guard<std::mutex> lock(mutex);
+        return active_patient;
+    }
+};
+
+class Diagnostician {
+public:
+    ExaminationRoom* room;
+    std::map<std::string, Ward*>& wards;
+    std::function<void(Patient*, int)> improve_criticality;
+    std::function<bool(Patient*, Ward*)> check_deceased;
+    std::map<std::string, ExaminationRoom*>& all_rooms;
+    std::atomic<bool> stop_flag{ false };
+    std::thread worker;
+
+    Diagnostician(ExaminationRoom* r,
+        std::map<std::string, Ward*>& w,
+        std::function<void(Patient*, int)> ic,
+        std::function<bool(Patient*, Ward*)> cd,
+        std::map<std::string, ExaminationRoom*>& ar)
+        : room(r), wards(w), improve_criticality(ic), check_deceased(cd), all_rooms(ar) {
+        worker = std::thread(&Diagnostician::run, this);
+    }
+
+    void run() {
+        using namespace std::chrono_literals;
+        while (!stop_flag) {
+            Patient* p = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(room->mutex);
+                if (!room->queue.empty()) {
+                    p = room->queue.front();
+                    room->queue.pop();
+                }
+            }
+
+            if (!p) {
+                std::this_thread::sleep_for(100ms);
+                continue;
+            }
+
+            if (p->status == "Deceased") continue;
+
+            room->set_active_patient(p);
+            p->status = "Exam: " + room->name;
+            p->history.tests_done.push_back(room->name);
+            p->move_to(room->x, room->y);
+            std::this_thread::sleep_for(std::chrono::milliseconds(3000 + std::uniform_int_distribution<int>(0, 2000 - 1)(rng)
+            ));
+
+            improve_criticality(p, std::uniform_int_distribution<int>(0, 41 - 1)(rng)
+                + 10);
+
+            Ward* ward = wards[p->target_ward];
+            if (ward && check_deceased(p, ward)) {
+                room->set_active_patient(nullptr);
+                continue;
+            }
+
+            auto& needed = p->tests_needed;
+            needed.erase(std::remove(needed.begin(), needed.end(), room->name), needed.end());
+
+            p->move_to(room->x, room->y + 30);
+            room->set_active_patient(nullptr);
+
+            if (p->criticality <= 0) {
+                if (ward) check_deceased(p, ward);
+                continue;
+            }
+
+            if (p->has_bed) {
+                p->status = "Returning to bed";
+            }
+            else if (!p->tests_needed.empty()) {
+                std::string next = p->tests_needed.front();
+                all_rooms[next]->add_patient(p);
+            }
+            else if (ward) {
+                if (ward->admit_after_consult(p)) {
+                    p->status = ward->name + " - Bed " + std::to_string(p->bed_index + 1);
+                }
+                else {
+                    p->status = ward->name + " (Waiting)";
+                    std::lock_guard<std::mutex> lock(ward->ward_mutex);
+                    bool in_queue = false;
+                    std::queue<Patient*> tmp = ward->waiting_queue;
+                    while (!tmp.empty()) {
+                        if (tmp.front() == p) {
+                            in_queue = true;
+                            break;
+                        }
+                        tmp.pop();
+                    }
+                    if (!in_queue) ward->waiting_queue.push(p);
+                }
+            }
+        }
+    }
+
+    void stop() {
+        stop_flag = true;
+        if (worker.joinable()) worker.join();
+    }
+
+    ~Diagnostician() {
+        stop();
+    }
+};
+
+class Simulation {
+public:
+    int simulated_time_minutes = 8 * 60;
+    int tick = 0;
+    std::atomic<bool> stop_flag{ false };
+    std::vector<Patient*> patients;
+    std::map<std::string, Ward*> wards;
+    std::map<std::string, ExaminationRoom*> exam_rooms;
+    std::map<std::string, Medication*> medications;
+    std::vector<Doctor*> all_doctors;
+    std::vector<Nurse*> all_nurses;
+    std::vector<Diagnostician*> diagnosticians;
+
+    std::string csv_path;
+    std::mutex stat_mutex;
+    int total_deceased = 0;
+    int total_discharged = 0;
+    std::vector<int> wait_times;
+    std::vector<int> hospital_times;
+
+    void initialize() {
+        fs::create_directory("statistics");
+        csv_path = "statistics/stat_" + std::to_string(std::time(nullptr)) + ".csv";
+        std::ofstream file(csv_path);
+        file << "time,deceased,discharged,avg_wait_time,avg_hospital_time\n";
+    }
+
+    void log_stats() {
+        std::lock_guard<std::mutex> lock(stat_mutex);
+        double avg_wait = wait_times.empty() ? 0.0 : std::accumulate(wait_times.begin(), wait_times.end(), 0.0) / wait_times.size();
+        double avg_hospital = hospital_times.empty() ? 0.0 : std::accumulate(hospital_times.begin(), hospital_times.end(), 0.0) / hospital_times.size();
+
+        std::ofstream file(csv_path, std::ios::app);
+        file << simulated_time_minutes << ","
+            << total_deceased << ","
+            << total_discharged << ","
+            << std::fixed << std::setprecision(2) << avg_wait << ","
+            << std::fixed << std::setprecision(2) << avg_hospital << "\n";
+    }
+
+    void update() {
+        using namespace std::chrono_literals;
+        while (!stop_flag) {
+            std::this_thread::sleep_for(100ms);
+            tick++;
+            if (tick >= 10) {
+                simulated_time_minutes += 60;
+                tick = 0;
+                log_stats();
+            }
+        }
+    }
+
+    void shutdown() {
+        stop_flag = true;
+        for (auto* d : diagnosticians) d->stop();
+        for (auto* n : all_nurses) n->stop();
+        for (auto* d : all_doctors) d->stop();
+    }
+
+    ~Simulation() {
+        shutdown();
+    }
+};
+
+
+int main() {
+
+
+    //// Initialize the random seed once
+    //std::srand(static_cast<unsigned>(std::time(nullptr)));
+
+    //// Create a vector of patients
+    //std::vector<Patient*> patients;
+    //for (int i = 0; i < 5; ++i) {
+    //    patients.push_back(new Patient(i));
+    //}
+
+    //// Create a doctor and a ward
+    //Doctor* doc1 = new Doctor("Cardiology", 1);
+    //std::vector<Doctor*> doctors = { doc1 };
+    //Ward* cardiology = new Ward("Cardiology", 2, doctors);
+
+    //// Create a nurse
+    //Nurse* nurse1 = new Nurse(1);
+
+    //// Assign patients to nurse and cardiology
+    //for (auto* p : patients) {
+    //    nurse1->add_patient(p);
+    //    cardiology->assign_patient(p);
+    //    cardiology->admit_after_consult(p);
+    //}
+
+    //// Allow the simulation to run for a while
+    //std::this_thread::sleep_for(std::chrono::seconds(20));
+
+    //// Release patients from ward if they had beds
+    //for (auto* p : patients) {
+    //    if (p->has_bed) {
+    //        cardiology->release_bed(p);
+    //    }
+    //}
+
+    //// Clean up threads and memory
+    //doc1->stop();
+    //nurse1->stop();
+    //delete doc1;
+    //delete cardiology;
+    //delete nurse1;
+    //for (auto* p : patients) delete p;
+
+    //return 0;
+
+    system("python3 C:\\Users\\Amelka\\Desktop\\Hospital-Simulation-SO2\\Simulation.py");
+		return 0;
+
+}
+
