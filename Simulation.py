@@ -68,6 +68,9 @@ class Pacjent:
         else:
             self.badania_do_wykonania = []
 
+        self.w_trakcie_badania = False
+        self.lock = threading.Lock()  # mutex dla pacjenta
+
         self.liczba_badan = 0
         self.czy_ma_lozko = False
         self.index_lozka = None
@@ -100,6 +103,7 @@ class Pacjent:
         }
 
         print(f"Pacjent {self.id} ({self.status}) - badania: {self.badania_do_wykonania}, czas na oddziale: {self.czas_na_odziale}")
+
 
     def move_to(self, x, y):
         dx, dy = x - self.x, y - self.y
@@ -365,6 +369,7 @@ class LekarzDiagnosta(threading.Thread):
 
                 self.gabinet.set_aktywny(pacjent)
                 pacjent.status = f"Badanie: {self.gabinet.nazwa}"
+                pacjent.w_trakcie_badania = True
                 pacjent.historia["badania"].append(self.gabinet.nazwa)
                 pacjent.move_to(self.gabinet.x, self.gabinet.y)
                 time.sleep(random.uniform(3, 5))
@@ -374,6 +379,7 @@ class LekarzDiagnosta(threading.Thread):
                 oddzial = self.oddzialy.get(pacjent.oddzial_docelowy)
                 if oddzial and self.app.sprawdz_zgon(pacjent, oddzial):
                     self.gabinet.set_aktywny(None)
+                    pacjent.w_trakcie_badania = False
                     continue
 
                 if self.gabinet.nazwa in pacjent.badania_do_wykonania:
@@ -384,7 +390,8 @@ class LekarzDiagnosta(threading.Thread):
 
                 pacjent.move_to(self.gabinet.x, self.gabinet.y + 30)
                 self.gabinet.set_aktywny(None)
-
+                with pacjent.lock:
+                    pacjent.w_trakcie_badania = False
                 if pacjent.krytycznosc <= 0:
                     if oddzial:
                         self.app.sprawdz_zgon(pacjent, oddzial)
@@ -395,8 +402,10 @@ class LekarzDiagnosta(threading.Thread):
 
                 elif pacjent.badania_do_wykonania:
                     kolejny = pacjent.badania_do_wykonania[0]
-                    self.app.gabinety_badan[kolejny].dodaj_pacjenta(pacjent)
-
+                    with pacjent.lock:
+                        if not pacjent.w_trakcie_badania:
+                            self.app.gabinety_badan[kolejny].dodaj_pacjenta(pacjent)
+                            pacjent.w_trakcie_badania = True
 
                 elif oddzial:
                     # Najpierw spróbuj zakwaterować
@@ -976,10 +985,13 @@ class Symulacja:
 
             for gabinet in self.gabinety_badan.values():
                 pacjent = gabinet.get_aktywny()
-                if pacjent:
+                if pacjent and pacjent.status != "Zmarł":
                     if pacjent is None or pacjent.status == "Zmarł":
                         continue
+                    self.canvas.itemconfig(gabinet.rect_id, fill=pacjent.color)
                     pacjent.move_to(gabinet.x, gabinet.y)
+                else:
+                    self.canvas.itemconfig(gabinet.rect_id, fill="white")
 
                 for j, p in enumerate(gabinet.get_kolejka()):
                     p.move_to(gabinet.x + j * 18, gabinet.y + 65)
@@ -1078,8 +1090,11 @@ class Symulacja:
                             if dostepne:
                                 nowe_badanie = random.choice(dostepne)
                                 pacjent.badania_do_wykonania.append(nowe_badanie)
-                                self.gabinety_badan[nowe_badanie].dodaj_pacjenta(pacjent)
-                                print(f"🧪 Pacjent {pacjent.id} (łóżko) dostał nowe badanie: {nowe_badanie}")
+                                with pacjent.lock:
+                                    if not pacjent.w_trakcie_badania:
+                                        self.gabinety_badan[nowe_badanie].dodaj_pacjenta(pacjent)
+                                        pacjent.w_trakcie_badania= True
+                                        print(f"🧪 Pacjent {pacjent.id} (łóżko) dostał nowe badanie: {nowe_badanie}")
 
                         # 5. Rysowanie
                         lx, ly = self.lozka_graficzne[(nazwa, i)]
