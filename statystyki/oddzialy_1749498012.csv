@@ -1,0 +1,8 @@
+dzien,oddzial,pacjenci_przyjeci,zgony,wypisy,badania_przeprowadzone,%_zapełnienia_łóżek,pacjenci_na_lekarza
+1,Chirurgia,0,0,0,0,0.0,0.0
+1,Interna,1,0,0,0,0.0,0.25
+1,Ortopedia,0,0,0,0,8.33,1.0
+1,Neurologia,1,0,0,0,50.0,3.0
+1,Kardiologia,1,0,0,0,6.67,1.0
+1,Pediatria,0,0,0,0,0.0,0.0
+1,Onkologia,0,0,0,0,0.0,0.5

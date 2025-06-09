@@ -8,6 +8,7 @@ import tkinter as tk
 import random
 import threading
 import time
+from collections import defaultdict
 from queue import Queue
 import sys
 from queue import Empty
@@ -51,6 +52,9 @@ KOLORY = ["red", "blue", "green", "orange", "purple", "brown", "pink", "gray", "
 BADANIA = ["RTG", "USG", "EKG", "KREW", "Konsultacja", "Kolonoskopia", "Gastroskopia", "CT", "MR", "Biopsja"]
 P_BADANIA = 0.7
 
+def średnia(lista):
+    return round(sum(lista) / len(lista), 2) if lista else 0
+
 class Pacjent:
     def __init__(self, id, canvas, app):
         self.id = id
@@ -89,9 +93,10 @@ class Pacjent:
             "czas_oczekiwania_na_lozko": 0,
             "czas_w_izbie": 0,
             "czas_u_pielegniarki": 0,
+            "czas_przyjecia_na_oddzial": 0,
             "leki_przyjete": {},
             "badania": [],
-            "czas_przybycia": app.symulowany_czas if hasattr(app, "symulowany_czas") else 0
+            "czas_przybycia": app.symulowany_czas if hasattr(app, "symulowany_czas") else 0 # czas przybycia do szpitala
         }
 
         print(f"Pacjent {self.id} ({self.status}) - badania: {self.badania_do_wykonania}, czas na oddziale: {self.czas_na_odziale}")
@@ -272,10 +277,14 @@ class Oddzial:
             for i in range(len(self.lozka)):
                 if self.lozka[i] is None:
                     self.lozka[i] = pacjent
-                    pacjent.status = f"{self.nazwa} - łóżko {i + 1}"
+                    pacjent.status = f"{self.nazwa}|łóżko {i + 1}"
+
+                    pacjent.historia["czas_przyjecia_na_oddzial"] = self.app.symulowany_czas
+
                     pacjent.czy_ma_lozko = True
                     pacjent.historia["czas_oczekiwania_na_lozko"] = self.app.symulowany_czas - pacjent.historia[
                         "czas_przybycia"]
+
                     pacjent.index_lozka = i
 
                     pacjent.leki = {}
@@ -290,7 +299,7 @@ class Oddzial:
 
             # Jeśli nie ma wolnego łóżka, dodaj do kolejki oczekujących
             self.kolejka.put(pacjent)
-            pacjent.status = f"{self.nazwa} (oczekuje)"
+            pacjent.status = f"{self.nazwa}|czeka"
             return False
 
     def zwolnij_lozko(self, pacjent):
@@ -369,6 +378,9 @@ class LekarzDiagnosta(threading.Thread):
 
                 if self.gabinet.nazwa in pacjent.badania_do_wykonania:
                     pacjent.badania_do_wykonania.remove(self.gabinet.nazwa)
+
+                pacjent.historia["badania"].append(self.gabinet.nazwa)
+                self.app.statystyki["badania"][self.gabinet.nazwa] += 1
 
                 pacjent.move_to(self.gabinet.x, self.gabinet.y + 30)
                 self.gabinet.set_aktywny(None)
@@ -509,6 +521,10 @@ class Pielegniarka(threading.Thread):
 
                 pacjent.start_pielegniarki = self.app.symulowany_czas
 
+                czas = self.app.symulowany_czas - pacjent.historia["czas_przybycia"]
+                self.app.statystyki["średni_czas_w_izbie"].append(czas / 60)  # czas w izbie w minutach
+
+
                 # Symulacja czasu obsługi (bez zablokowania całego wątku)
                 time_start = time.time()
                 time_to_work = random.uniform(2, 4)
@@ -523,6 +539,8 @@ class Pielegniarka(threading.Thread):
                 oddzial_obj = random.choice(list(self.oddzialy.values()))
                 pacjent.status = f"Oddział {oddzial_obj.nazwa}"
                 pacjent.oddzial_docelowy = oddzial_obj.nazwa
+
+
 
                 # Po zakończeniu obsługi pacjenta
                 with self.lock:
@@ -584,6 +602,7 @@ class Lek:
                 print(f"⛔ Lek {self.nazwa} niedostępny – podanie wstrzymane!")
                 return False
             self.ilosc -= 1
+
             print(f"✅ Podano lek {self.nazwa}, pozostało {self.ilosc} szt.")
             if self.ilosc < self.prog_minimalny:
                 self.zamow()
@@ -606,13 +625,18 @@ class Symulacja:
 
         self.statystyki = {
             "zgonów": 0,
-            "wypisanych": 0,
+            "wypisani": 0,
+            "leki": defaultdict(int),
+            "badania": defaultdict(int),
             "średni_czas_ocz_na_lozko": [],
             "średni_czas_w_szpitalu": [],
-            "leki": {},
-            "badania": {}
+            "średni_czas_w_izbie": [],
+            "nowi_pacjenci_dzienni": []  # lista krotek: (ciezki, sredni, lekki)
+
         }
 
+
+        # STATYSTYKI OGOLNE ----------------------------------------------------------------------------------
         self.csv_folder = "statystyki"
         os.makedirs(self.csv_folder, exist_ok=True)
         self.csv_file = os.path.join(self.csv_folder, f"statystyki_{int(time.time())}.csv")
@@ -620,9 +644,28 @@ class Symulacja:
         with open(self.csv_file, mode="w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow([
-                "czas", "zgonów", "wypisanych", "średni czas ocz. na łóżko (min)",
-                "średni czas w szpitalu (min)", "leki", "badania"
+                "dzien",
+                "nowi pacjenci - stan ciezki",
+                "nowi pacjenci - stan sredni",
+                "nowi pacjenci - stan lekki",
+                "zgony",
+                "wypisani",
+                "sredni czas w izbie (min)",
+                "sredni czas ocz. na łozko (min)",
+                "średni czas w szpitalu (min)",
+                "leki",
+                "badania"
             ])
+
+            # STATYSTYKI ODDZIAŁÓW ----------------------------------------------------------------------------------
+
+            self.csv_oddzialy_file = os.path.join(self.csv_folder, f"oddzialy_{int(time.time())}.csv")
+            with open(self.csv_oddzialy_file, mode="w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    "dzien", "oddzial", "pacjenci_przyjeci", "zgony", "wypisy",
+                    "badania_przeprowadzone", "%_zapełnienia_łóżek", "pacjenci_na_lekarza"
+                ])
 
         self.pacjenci = [Pacjent(i, self.canvas, self) for i in range(PACJENTÓW)]
         self.kolejka_wejsciowa = Queue()
@@ -727,6 +770,33 @@ class Symulacja:
             self.kolejka_wejsciowa.put(nowy)
             print(f"➕ Nowy pacjent {nowy.id} dodany do kolejki (co {czas:.2f}s)")
 
+
+# STATYSTYKI ---------------------------------------------------------
+
+            dzien = self.symulowany_czas // (24 * 60) + 1  # dzień w symulacji
+
+            # Rozszerz listę, jeśli trzeba
+            while len(self.statystyki["nowi_pacjenci_dzienni"]) <= dzien:
+                self.statystyki["nowi_pacjenci_dzienni"].append((0, 0, 0))
+
+            # Załóżmy, że `nowy.krytycznosc` decyduje o stanie
+            if nowy.krytycznosc < 70:
+                typ = "krytyczny"
+            elif nowy.krytycznosc < 130:
+                typ = "średni"
+            else:
+                typ = "lekki"
+
+            k, s, l = self.statystyki["nowi_pacjenci_dzienni"][dzien]
+            if typ == "krytyczny":
+                k += 1
+            elif typ == "średni":
+                s += 1
+            else:
+                l += 1
+
+            self.statystyki["nowi_pacjenci_dzienni"][dzien] = (k, s, l)
+
     def draw_labels(self):
         self.canvas.create_text(100, 30, text="Izba Przyjęć", font=("Arial", 10))
         for i, nazwa in enumerate(ODDZIALY):
@@ -769,10 +839,15 @@ class Symulacja:
     def sprawdz_zgon(self, pacjent, oddzial):
         if pacjent and pacjent.krytycznosc <= 0 and pacjent.status != "Zmarł":
             pacjent.status = "Zmarł"
+
+# STATYSTYKI ---------------------------------------------------------
+            czas_w_szpitalu = self.symulowany_czas - pacjent.historia["czas_przybycia"]
+            self.statystyki["średni_czas_w_szpitalu"].append(czas_w_szpitalu)
             self.statystyki["zgonów"] += 1
+# --------------------------------------------------------------------
+
             self.zmarli.append(pacjent)
 
-            #oddzial.zwolnij_lozko(pacjent)
 
             if oddzial:
                 oddzial.zwolnij_lozko(pacjent)
@@ -784,7 +859,7 @@ class Symulacja:
             # Oznacz graficznie jako zmarły
             # Oznacz graficznie jako zmarły – tylko obramowanie na czarno
             self.canvas.itemconfig(pacjent.oval, outline="black", width=3)
-            self.canvas.itemconfig(pacjent.label, text="ZMARŁ")
+            self.canvas.itemconfig(pacjent.label, text="")
 
             # Usuń z kolejki wejściowej
             with self.kolejka_wejsciowa.mutex:
@@ -827,7 +902,7 @@ class Symulacja:
         if pacjent is None:
             return False
         if pacjent.krytycznosc >= 250 and pacjent.status != "Wypisany":
-            self.statystyki["wypisanych"] += 1
+            self.statystyki["wypisani"] += 1
             czas = pacjent.historia.get("czas_w_szpitalu", 0)
             self.statystyki["średni_czas_w_szpitalu"].append(czas)
             ocz = pacjent.historia.get("czas_oczekiwania_na_lozko", 0)
@@ -848,7 +923,7 @@ class Symulacja:
 
     def update_gui(self):
         try:
-            if self.symulowany_czas % (60 * 24) == 0:
+            if self.symulowany_czas % (60 * 24) == 0 and self.symulacja_tick == 9:
                 self.zapisz_statystyki_csv()
 
             for i, pacjent in enumerate(list(self.kolejka_wejsciowa.queue)):
@@ -979,6 +1054,9 @@ class Symulacja:
                                         self.popraw_krytycznosc(pacjent, random.randint(10,50))  # poprawa krytyczności po podaniu leku
                                         print(f"💊 Pacjent {pacjent.id} poprawił stan po {lek_nazwa}")
 
+# Statystyki ---------------------------------------------------------------------------------------
+                                        self.statystyki["leki"][lek_nazwa] += 1
+
                                     else:
                                         pacjent.krytycznosc -= 10  # zmniejszenie krytyczności przy braku leku
                                         if random.random() < 0.1:
@@ -995,7 +1073,7 @@ class Symulacja:
                                             #     print(f"⏱️ Pacjent {pacjent.id} skrócił czas pobytu o {zmiana} minut")
 
                         # # Losowe dodanie badania
-                        if random.random() < 0.002:  # niska szansa co tick
+                        if random.random() < 0.02:  # niska szansa co tick
                             dostepne = list(set(BADANIA) - set(pacjent.badania_do_wykonania))
                             if dostepne:
                                 nowe_badanie = random.choice(dostepne)
@@ -1127,28 +1205,94 @@ class Symulacja:
             self.canvas.after(100, self.update_gui)
         except Exception as e:
             print(f"Błąd aktualizacji GUI: {e}")
+            traceback.print_exc()
             self.canvas.after(100, self.update_gui)
 
     def zapisz_statystyki_csv(self):
-        sr_ocz = (sum(self.statystyki["średni_czas_ocz_na_lozko"]) / len(self.statystyki["średni_czas_ocz_na_lozko"])
-                  if self.statystyki["średni_czas_ocz_na_lozko"] else 0)
-        sr_szpit = (sum(self.statystyki["średni_czas_w_szpitalu"]) / len(self.statystyki["średni_czas_w_szpitalu"])
-                    if self.statystyki["średni_czas_w_szpitalu"] else 0)
+        dzien = self.symulowany_czas // 1440
+        nowi = self.statystyki["nowi_pacjenci_dzienni"][dzien] if dzien < len(
+            self.statystyki["nowi_pacjenci_dzienni"]) else [0, 0, 0]
+        krytyczni, sredni, leccy = nowi
 
-        leki_str = "; ".join([f"{k}: {v}" for k, v in self.statystyki["leki"].items()])
-        badania_str = "; ".join([f"{k}: {v}" for k, v in self.statystyki["badania"].items()])
-
+        sr_izba = średnia(self.statystyki["średni_czas_w_izbie"])
+        sr_ocz = średnia(self.statystyki["średni_czas_ocz_na_lozko"])
+        sr_szpital = średnia(self.statystyki["średni_czas_w_szpitalu"])
+        suma_lekow = sum(self.statystyki["leki"].values())
+        badania_str = "; ".join(f"{nazwa}: {liczba}" for nazwa, liczba in self.statystyki["badania"].items())
         with open(self.csv_file, mode="a", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
+            writer = csv.writer(f)  # ← tutaj tworzysz writer
+
             writer.writerow([
-                self.symulowany_czas,
+                dzien,
+                krytyczni, sredni, leccy,
                 self.statystyki["zgonów"],
-                self.statystyki["wypisanych"],
-                round(sr_ocz, 2),
-                round(sr_szpit, 2),
-                leki_str,
+                self.statystyki["wypisani"],
+                sr_izba,
+                sr_ocz,
+                sr_szpital,
+                suma_lekow,
                 badania_str
             ])
+
+        with open(self.csv_oddzialy_file, mode="a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+
+            for nazwa, oddzial in self.oddzialy.items():
+                liczba_lozek = len(oddzial.lozka)
+                zajete_lozka = sum(1 for p in oddzial.lozka if p is not None)
+                procent_zapelnienia = round((zajete_lozka / liczba_lozek) * 100, 2) if liczba_lozek else 0
+
+                przyjeci = sum(1 for p in self.pacjenci
+                               if p.oddzial_docelowy == nazwa and
+                               p.historia["czas_przyjecia_na_oddzial"] // 1440 == dzien-1)
+
+                zgony = sum(1 for p in self.zmarli
+                            if p.oddzial_docelowy == nazwa and
+                            p.historia["czas_przyjecia_na_oddzial"] // 1440 == dzien-1)
+
+                # Statystyki dla "Izba Przyjęć" – pacjenci bez oddziału
+                zgony_izba = sum(1 for p in self.zmarli
+                                 if p.oddzial_docelowy is None and
+                                 p.historia.get("czas_przyjecia_na_oddzial", 0) == 0 and
+                                 p.historia["czas_przybycia"] // 1440 == dzien - 1)
+
+                badania_izba = sum(1 for p in self.pacjenci
+                                   if p.oddzial_docelowy is None and
+                                   any(p.historia["badania"]) and
+                                   p.historia["czas_przybycia"] // 1440 == dzien - 1)
+
+                writer.writerow([
+                    dzien, "Izba Przyjęć",  # oddział
+                    0,  # pacjenci_przyjeci
+                    zgony_izba,  # zgony
+                    0,  # wypisy
+                    0,  # badania
+                    0,  # % zapełnienia łóżek
+                    0  # pacjenci_na_lekarza
+                ])
+                print("XXXXXXXXXXXXXXXXXXX")
+                for p in self.zmarli:
+                    print(f"Pacjent {p.id} zmarł na oddziale {p.oddzial_docelowy} w dniu {p.historia['czas_przyjecia_na_oddzial'] // 1440 + 1}")
+
+                wypisy = sum(1 for p in self.wypisani
+                             if p.oddzial_docelowy == nazwa and
+                             p.historia["czas_przyjecia_na_oddzial"] // 1440 == dzien-1)
+
+
+                badania = sum(1 for p in self.pacjenci
+                              if p.oddzial_docelowy == nazwa and
+                              any(b for b in p.historia["badania"])
+                              and p.historia["czas_przyjecia_na_oddzial"] // 1440 == dzien-1)
+
+                liczba_pacjentow = sum(1 for p in self.pacjenci
+                                       if p.oddzial_docelowy == nazwa)
+                liczba_lekarzy = len(self.lekarze[nazwa]) if nazwa in self.lekarze else 1
+                pacjenci_na_lekarza = round(liczba_pacjentow / liczba_lekarzy, 2) if liczba_lekarzy else 0
+
+                writer.writerow([
+                    dzien, nazwa, przyjeci, zgony, wypisy, badania,
+                    procent_zapelnienia, pacjenci_na_lekarza
+                ])
 
     def zakoncz_program(self):
         for p in self.pielegniarki:

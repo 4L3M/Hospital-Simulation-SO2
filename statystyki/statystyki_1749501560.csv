@@ -1,0 +1,8 @@
+dzien,nowi pacjenci - stan ciezki,nowi pacjenci - stan sredni,nowi pacjenci - stan lekki,zgony,wypisani,sredni czas w izbie (min),sredni czas ocz. na łozko (min),średni czas w szpitalu (min),leki,badania
+1,1,5,5,0,1,0.0,540.0,0.0,5,USG: 1; Kolonoskopia: 3; Biopsja: 1; RTG: 2; CT: 1; EKG: 1; KREW: 3
+2,0,7,12,0,16,2.07,367.5,285.0,64,USG: 8; Kolonoskopia: 13; Biopsja: 15; RTG: 14; CT: 14; EKG: 19; KREW: 20; Gastroskopia: 20; Konsultacja: 15; MR: 9
+3,1,5,13,0,52,1.56,530.77,632.31,202,USG: 35; Kolonoskopia: 52; Biopsja: 42; RTG: 47; CT: 43; EKG: 40; KREW: 67; Gastroskopia: 46; Konsultacja: 45; MR: 38
+4,3,8,8,0,89,1.41,541.35,895.28,443,USG: 50; Kolonoskopia: 84; Biopsja: 80; RTG: 70; CT: 82; EKG: 78; KREW: 117; Gastroskopia: 71; Konsultacja: 88; MR: 73
+5,3,8,8,1,117,1.15,569.74,1085.59,752,USG: 88; Kolonoskopia: 123; Biopsja: 126; RTG: 98; CT: 127; EKG: 115; KREW: 153; Gastroskopia: 105; Konsultacja: 129; MR: 125
+6,4,6,8,2,141,0.97,631.06,1343.92,1190,USG: 125; Kolonoskopia: 175; Biopsja: 176; RTG: 141; CT: 170; EKG: 152; KREW: 211; Gastroskopia: 153; Konsultacja: 174; MR: 176
+7,6,6,6,19,161,0.88,703.6,1761.67,1670,USG: 159; Kolonoskopia: 234; Biopsja: 226; RTG: 169; CT: 214; EKG: 202; KREW: 268; Gastroskopia: 185; Konsultacja: 216; MR: 223
