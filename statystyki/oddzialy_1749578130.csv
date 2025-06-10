@@ -1,0 +1,29 @@
+dzien,oddzial,pacjenci_przyjeci,zgony,wypisy,badania_przeprowadzone,%_zapełnienia_łóżek,pacjenci_na_lekarza
+1,Izba Przyjęć,0,0,0,0,0,0
+1,Chirurgia,2,0,0,1,10.0,1.0
+1,Izba Przyjęć,0,0,0,0,0,0
+1,Interna,0,0,0,0,0.0,0.0
+1,Izba Przyjęć,0,0,0,0,0,0
+1,Ortopedia,2,0,0,2,22.22,0.67
+1,Izba Przyjęć,0,0,0,0,0,0
+1,Neurologia,3,0,0,2,20.0,0.6
+1,Izba Przyjęć,0,0,0,0,0,0
+1,Kardiologia,1,0,0,0,6.67,0.25
+1,Izba Przyjęć,0,0,0,0,0,0
+1,Pediatria,1,0,0,0,0.0,0.33
+1,Izba Przyjęć,0,0,0,0,0,0
+1,Onkologia,1,0,0,1,11.11,1.0
+2,Izba Przyjęć,0,0,0,0,0,0
+2,Chirurgia,2,0,0,1,20.0,2.0
+2,Izba Przyjęć,0,0,0,0,0,0
+2,Interna,4,0,2,2,75.0,2.0
+2,Izba Przyjęć,0,0,0,0,0,0
+2,Ortopedia,0,0,0,0,0.0,1.0
+2,Izba Przyjęć,0,0,0,0,0,0
+2,Neurologia,1,0,1,1,10.0,1.4
+2,Izba Przyjęć,0,0,0,0,0,0
+2,Kardiologia,1,0,1,0,0.0,0.5
+2,Izba Przyjęć,0,0,0,0,0,0
+2,Pediatria,1,0,1,1,6.67,0.67
+2,Izba Przyjęć,0,0,0,0,0,0
+2,Onkologia,1,0,0,1,11.11,3.0

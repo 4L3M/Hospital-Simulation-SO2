@@ -1,0 +1,99 @@
+dzien,oddzial,pacjenci_przyjeci,zgony,wypisy,badania_przeprowadzone,%_zapełnienia_łóżek,pacjenci_na_lekarza
+1,Izba Przyjęć,0,0,0,0,0,0
+1,Chirurgia,2,0,0,0,16.67,0.4
+1,Izba Przyjęć,0,0,0,0,0,0
+1,Interna,2,0,0,1,14.29,1.0
+1,Izba Przyjęć,0,0,0,0,0,0
+1,Ortopedia,0,0,0,0,0.0,0.0
+1,Izba Przyjęć,0,0,0,0,0,0
+1,Neurologia,3,0,0,2,25.0,1.0
+1,Izba Przyjęć,0,0,0,0,0,0
+1,Kardiologia,0,0,0,0,0.0,0.0
+1,Izba Przyjęć,0,0,0,0,0,0
+1,Pediatria,2,0,0,1,16.67,2.0
+1,Izba Przyjęć,0,0,0,0,0,0
+1,Onkologia,1,0,0,0,0.0,0.5
+2,Izba Przyjęć,0,0,0,0,0,0
+2,Chirurgia,4,0,0,2,33.33,1.2
+2,Izba Przyjęć,0,0,0,0,0,0
+2,Interna,1,0,0,1,7.14,2.0
+2,Izba Przyjęć,0,0,0,0,0,0
+2,Ortopedia,1,0,0,1,66.67,1.0
+2,Izba Przyjęć,0,0,0,0,0,0
+2,Neurologia,2,0,0,2,25.0,1.33
+2,Izba Przyjęć,0,0,0,0,0,0
+2,Kardiologia,0,0,0,0,0.0,0.5
+2,Izba Przyjęć,0,0,0,0,0,0
+2,Pediatria,4,1,3,3,16.67,7.0
+2,Izba Przyjęć,0,0,0,0,0,0
+2,Onkologia,1,0,2,1,0.0,0.5
+3,Izba Przyjęć,0,0,0,0,0,0
+3,Chirurgia,1,0,0,0,8.33,1.6
+3,Izba Przyjęć,0,0,0,0,0,0
+3,Interna,3,0,0,3,21.43,3.5
+3,Izba Przyjęć,0,0,0,0,0,0
+3,Ortopedia,5,1,4,4,100.0,2.33
+3,Izba Przyjęć,0,0,0,0,0,0
+3,Neurologia,0,0,0,0,0.0,1.33
+3,Izba Przyjęć,0,0,0,0,0,0
+3,Kardiologia,4,0,2,3,33.33,2.5
+3,Izba Przyjęć,0,0,0,0,0,0
+3,Pediatria,2,0,2,2,16.67,7.0
+3,Izba Przyjęć,0,0,0,0,0,0
+3,Onkologia,2,0,2,1,0.0,2.0
+4,Izba Przyjęć,0,0,0,0,0,0
+4,Chirurgia,1,0,1,1,0.0,2.2
+4,Izba Przyjęć,0,0,0,0,0,0
+4,Interna,2,0,0,2,28.57,4.0
+4,Izba Przyjęć,0,0,0,0,0,0
+4,Ortopedia,1,0,0,1,100.0,2.33
+4,Izba Przyjęć,0,0,0,0,0,0
+4,Neurologia,1,0,0,1,12.5,1.67
+4,Izba Przyjęć,0,0,0,0,0,0
+4,Kardiologia,3,0,0,3,50.0,4.0
+4,Izba Przyjęć,0,0,0,0,0,0
+4,Pediatria,0,0,0,0,0.0,10.0
+4,Izba Przyjęć,0,0,0,0,0,0
+4,Onkologia,5,0,1,4,26.67,5.0
+5,Izba Przyjęć,0,0,0,0,0,0
+5,Chirurgia,5,0,1,5,41.67,2.8
+5,Izba Przyjęć,0,0,0,0,0,0
+5,Interna,2,0,2,2,21.43,5.0
+5,Izba Przyjęć,0,0,0,0,0,0
+5,Ortopedia,0,0,0,0,100.0,3.67
+5,Izba Przyjęć,0,0,0,0,0,0
+5,Neurologia,1,0,0,0,37.5,2.33
+5,Izba Przyjęć,0,0,0,0,0,0
+5,Kardiologia,2,0,2,2,66.67,5.0
+5,Izba Przyjęć,0,0,0,0,0,0
+5,Pediatria,3,0,0,3,66.67,10.0
+5,Izba Przyjęć,0,0,0,0,0,0
+5,Onkologia,5,1,0,3,46.67,7.0
+6,Izba Przyjęć,0,0,0,0,0,0
+6,Chirurgia,2,0,0,2,25.0,3.8
+6,Izba Przyjęć,0,0,0,0,0,0
+6,Interna,1,1,0,0,14.29,5.5
+6,Izba Przyjęć,0,0,0,0,0,0
+6,Ortopedia,0,0,0,0,100.0,5.0
+6,Izba Przyjęć,0,0,0,0,0,0
+6,Neurologia,5,0,3,5,37.5,3.67
+6,Izba Przyjęć,0,0,0,0,0,0
+6,Kardiologia,2,0,2,2,50.0,5.5
+6,Izba Przyjęć,0,0,0,0,0,0
+6,Pediatria,1,0,0,0,50.0,11.0
+6,Izba Przyjęć,0,0,0,0,0,0
+6,Onkologia,4,0,5,4,40.0,9.0
+7,Izba Przyjęć,0,0,0,0,0,0
+7,Chirurgia,9,0,4,9,58.33,5.2
+7,Izba Przyjęć,0,0,0,0,0,0
+7,Interna,3,0,0,3,28.57,7.0
+7,Izba Przyjęć,0,0,0,0,0,0
+7,Ortopedia,0,0,0,0,100.0,6.0
+7,Izba Przyjęć,0,0,0,0,0,0
+7,Neurologia,2,0,0,2,37.5,4.67
+7,Izba Przyjęć,0,0,0,0,0,0
+7,Kardiologia,2,0,0,2,50.0,7.0
+7,Izba Przyjęć,0,0,0,0,0,0
+7,Pediatria,0,0,0,0,16.67,11.0
+7,Izba Przyjęć,0,0,0,0,0,0
+7,Onkologia,4,0,5,3,26.67,11.0

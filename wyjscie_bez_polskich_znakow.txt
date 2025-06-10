@@ -15,50 +15,26 @@ from queue import Empty
 
 
 
-"""
 
- 
-OK - pacjenci ktorzy sa od razu do lekarza kierowani
- za dlugo sie wyswietlaja pod pielegniarka mimo ze juz go tam nie ma!!!
-
-OK - zmienic proporcje spadku i wzrostu krytyczności pacjenta
-
-Dodać:
-OK - zmienna liczba pacjentów!,pielęgniarek, lekarzy
-OK - zmienny czas pracy lekarza (bo kilku na oddziale)
-OK - zmienna liczba łóżek na oddziale
-0K - zmienna liczba badań, ale ma być dosyć dużo możliwych
-OK - dodać leki - zmienne zasoby które się kończą, trzeba domówić i one się odnawiają
-OK - dodać możliwość śmierci pacjenta
-
-- STATYSTYKI
-- ile czasu ktoś spędził w szpitalu, ile badań miał, ile czekał na przyjęcie (łóżko)
-
-OK - dodać kilku lekarzy na oddziale, którzy się zmieniają - mają czas pracy i po pewnym czasie mają przerwę
-OK - pielęgniarki - mają czas pracy i po pewnym czasie mają przerwę
-
-- WIĘCEJ WSZYSTKIEGO!!!
-
-"""
 
 MUTEX = threading.Lock()
 
-PACJENTÓW = random.randint(3, 5)  # liczba pacjentów na start
+PACJENTOW =  1 
 PIELEGNIARKI = random.randint(3,9)
-LEKARZE_NA_ODDZIAL = (1, 5)  # liczba lekarzy na oddziale
+LEKARZE_NA_ODDZIAL = (1, 5)  
 
 ODDZIALY = ["Chirurgia", "Interna", "Ortopedia", "Neurologia", "Kardiologia", "Pediatria", "Onkologia"]
 KOLORY = ["red", "blue", "green", "orange", "purple", "brown", "pink", "gray", "olive", "cyan"]
 BADANIA = ["RTG", "USG", "EKG", "KREW", "Konsultacja", "Kolonoskopia", "Gastroskopia", "CT", "MR", "Biopsja"]
 P_BADANIA = 0.7
 
-def średnia(lista):
+def srednia(lista):
     return round(sum(lista) / len(lista), 2) if lista else 0
 
 class Pacjent:
     def __init__(self, id, canvas, app):
         self.id = id
-        self.krytycznosc = random.randint(50, 200)  # 0 - śmierć, im mniej tym większa szansa na śmierć
+        self.krytycznosc = random.randint(50, 200)  
         self.status = "Izba"
         self.oddzial_docelowy = None
         self.badania_do_wykonania = []
@@ -69,13 +45,13 @@ class Pacjent:
             self.badania_do_wykonania = []
 
         self.w_trakcie_badania = False
-        self.lock = threading.Lock()  # mutex dla pacjenta
+        self.lock = threading.Lock()  
 
         self.liczba_badan = 0
         self.czy_ma_lozko = False
         self.index_lozka = None
 
-        self.czas_u_pielegniarki = 0  # czas w sekundach
+        self.czas_u_pielegniarki = 0  
         self.start_pielegniarki = None
 
         self.canvas = canvas
@@ -114,11 +90,11 @@ class Pacjent:
                 self.canvas.move(self.oval, dx, dy)
                 self.canvas.move(self.label, dx, dy)
 
-                # Aktualizacja tekstu labela
-                oddzial = self.status.split()[-1]  # wyciągamy nazwę oddziału z końca statusu
+                
+                oddzial = self.status.split()[-1]  
                 self.canvas.itemconfig(self.label, text=f" {self.id} || {int(self.krytycznosc)} | {oddzial}")
 
-                # Kolor obramowania w zależności od stanu
+                
                 if self.krytycznosc > 120:
                     outline = "yellow"
                 elif self.krytycznosc > 60:
@@ -131,7 +107,7 @@ class Pacjent:
                 self.canvas.itemconfig(self.oval, outline=outline, width=3)
 
             except Exception as e:
-                print(f"[move_to] Błąd aktualizacji GUI pacjenta {self.id}: {e}")
+                print(f"[move_to] Blad aktualizacji GUI pacjenta {self.id}: {e}")
 
         self.canvas.after(0, update_gui)
 
@@ -143,10 +119,10 @@ class Lekarz(threading.Thread):
         self.nazwa = nazwa_oddzialu
         self.numer  = numer
 
-        self.dlugosc_dyzuru = random.choice( [6*60, 8*60, 12*60, 24*60])  # godziny pracy lekarza
+        self.dlugosc_dyzuru = random.choice( [6*60, 8*60, 12*60, 24*60])  
 
         offset = random.randint(0, 6 * 60)
-        self.start_dyzuru = self.app.symulowany_czas - offset  # rozpoczęcie dyżuru w losowym momencie
+        self.start_dyzuru = self.app.symulowany_czas - offset  
         self.w_pracy = True
 
         self.x = x
@@ -182,18 +158,18 @@ class Lekarz(threading.Thread):
 
     def run(self):
         while not self.stop_event.is_set():
-            # Czy czas pracy minął?
+            
             if self.w_pracy and (self.app.symulowany_czas - self.start_dyzuru >= self.dlugosc_dyzuru) and self.pacjent is None:
-                print(f"🛌 Lekarz {self.nazwa} #{self.numer} kończy dyżur i idzie na 12h przerwy.")
+                print(f" Lekarz {self.nazwa} #{self.numer} konczy dyzur i idzie na 12h przerwy.")
                 self.w_pracy = False
                 self.start_dyzuru = self.app.symulowany_czas
                 self.canvas.itemconfig(self.rect_id, fill="gray")
                 continue
 
-            # Czy czas przerwy minął?
+            
             if not self.w_pracy:
                 if self.app.symulowany_czas - self.start_dyzuru >= 12 * 60:
-                    print(f"👨‍⚕️ Lekarz {self.nazwa} #{self.numer} wraca do pracy.")
+                    print(f" Lekarz {self.nazwa} #{self.numer} wraca do pracy.")
                     self.w_pracy = True
                     self.dlugosc_dyzuru = random.choice([12 * 60, 24 * 60])
                     self.start_dyzuru = app.symulowany_czas
@@ -202,24 +178,24 @@ class Lekarz(threading.Thread):
                     time.sleep(0.1)
                     continue
 
-            # Co jakiś czas wychodzi z gabinetu na obchód
+            
             if self.w_gabinecie and random.random() < 0.01:
                 self.w_gabinecie = False
                 self.czas_rozpoczecia_obchodu = time.monotonic()
-                print(f"Lekarz {self.nazwa} #{self.numer} wyszedł na oddział.")
+                print(f"Lekarz {self.nazwa} #{self.numer} wyszedl na oddzial.")
 
             if not self.w_gabinecie and self.czas_rozpoczecia_obchodu is not None:
                 if time.monotonic() - self.czas_rozpoczecia_obchodu > 5:
                     self.w_gabinecie = True
-                    print(f"Lekarz {self.nazwa} #{self.numer} wrócił do gabinetu.")
+                    print(f"Lekarz {self.nazwa} #{self.numer} wrocil do gabinetu.")
                 time.sleep(0.1)
                 continue
 
-            # Obsługa pacjentów tylko jeśli w gabinecie
+            
             with self.lock:
                 pacjent = self.kolejka.pop(0) if self.kolejka else None
 
-            if pacjent is None or pacjent.status == "Zmarł":
+            if pacjent is None or pacjent.status == "Zmarl":
                 time.sleep(0.1)
                 continue
 
@@ -229,14 +205,14 @@ class Lekarz(threading.Thread):
                     pacjent.status = f"Konsultacja {self.nazwa}"
                 time.sleep(random.uniform(2, 4))
 
-                # zmiana = random.randint(-40, 40)
-                # procent = 1 + zmiana / 100
-                # stary_czas = pacjent.czas_na_odziale
-                # nowy_czas = max(30, int(stary_czas * procent))
-                # pacjent.czas_na_odziale = nowy_czas
+                
+                
+                
+                
+                
 
-                # print(
-                #     f"[{self.nazwa}] Pacjent {pacjent.id} – czas pobytu zmieniony z {stary_czas} do {nowy_czas} min ({zmiana:+}%)")
+                
+                
 
                 pacjent.status = f"{self.nazwa} - gotowy"
                 self.gotowi.append(pacjent)
@@ -263,7 +239,7 @@ class Oddzial:
         self.lozka = [None for _ in range(liczba_lozek)]
         self.kolejka = Queue()
         self.lock = MUTEX
-        self.lekarze = lekarze # lista lekarzy na oddziale
+        self.lekarze = lekarze 
         self.app = app
 
     def przyjmij_pacjenta(self, pacjent):
@@ -274,14 +250,14 @@ class Oddzial:
         with self.lock:
             if pacjent in self.lozka:
                 return True
-
+            
             if pacjent in list(self.kolejka.queue):
                 return False
 
             for i in range(len(self.lozka)):
                 if self.lozka[i] is None:
                     self.lozka[i] = pacjent
-                    pacjent.status = f"{self.nazwa}|łóżko {i + 1}"
+                    pacjent.status = f"{self.nazwa}|lozko {i + 1}"
 
                     pacjent.historia["czas_przyjecia_na_oddzial"] = self.app.symulowany_czas
 
@@ -293,7 +269,7 @@ class Oddzial:
 
                     pacjent.leki = {}
                     for lek_nazwa in random.sample(list(app.leki.keys()), random.randint(1, 4)):
-                        czestotliwosc = random.choice([8, 12, 24])  # w godzinach
+                        czestotliwosc = random.choice([8, 12, 24])  
                         pacjent.leki[lek_nazwa] = {
                             "czestotliwosc": czestotliwosc,
                             "ostatnio": app.symulowany_czas  # czas zakwaterowania
@@ -301,7 +277,7 @@ class Oddzial:
 
                     return True
 
-            # Jeśli nie ma wolnego łóżka, dodaj do kolejki oczekujących
+            
             self.kolejka.put(pacjent)
             pacjent.status = f"{self.nazwa}|czeka"
             return False
@@ -317,7 +293,7 @@ class Oddzial:
             if idx is not None and not self.kolejka.empty():
                 nowy = self.kolejka.get()
                 self.lozka[idx] = nowy
-                nowy.status = f"{self.nazwa} - łóżko {idx + 1}"
+                nowy.status = f"{self.nazwa} - lozko {idx + 1}"
                 nowy.czy_ma_lozko = True
                 nowy.index_lozka = idx
 
@@ -361,10 +337,10 @@ class LekarzDiagnosta(threading.Thread):
             try:
                 pacjent = self.gabinet.kolejka.get(timeout=1)
             except Empty:
-                continue  # normalne – brak pacjenta w kolejce
+                continue  
 
             try:
-                if pacjent.status == "Zmarł":
+                if pacjent.status == "Zmarl":
                     continue
 
                 self.gabinet.set_aktywny(pacjent)
@@ -398,7 +374,7 @@ class LekarzDiagnosta(threading.Thread):
                     continue
 
                 if pacjent.czy_ma_lozko:
-                    pacjent.status = "Powrót na łóżko"
+                    pacjent.status = "Powrot na lozko"
 
                 elif pacjent.badania_do_wykonania:
                     kolejny = pacjent.badania_do_wykonania[0]
@@ -408,9 +384,9 @@ class LekarzDiagnosta(threading.Thread):
                             pacjent.w_trakcie_badania = True
 
                 elif oddzial:
-                    # Najpierw spróbuj zakwaterować
+                    
                     if oddzial.zakwateruj_po_konsultacji(pacjent):
-                        pacjent.status = f"{oddzial.nazwa} - łóżko {pacjent.index_lozka + 1}"
+                        pacjent.status = f"{oddzial.nazwa} - lozko {pacjent.index_lozka + 1}"
                     else:
                         pacjent.status = f"{oddzial.nazwa} (oczekuje)"
                         with oddzial.lock:
@@ -418,7 +394,7 @@ class LekarzDiagnosta(threading.Thread):
                                 oddzial.kolejka.put(pacjent)
 
             except Exception as e:
-                print(f"[Diagnosta] Błąd podczas przetwarzania pacjenta: {e}")
+                print(f"[Diagnosta] Blad podczas przetwarzania pacjenta: {e}")
                 traceback.print_exc()
 
     def zatrzymaj(self):
@@ -433,13 +409,13 @@ class Pielegniarka(threading.Thread):
         self.x = x
         self.y = y
 
-        self.dlugosc_dyzuru = random.choice([12 * 60, 24 * 60])  # 12h lub 24h
-        offset = random.randint(0, 6 * 60)  # max 6h przesunięcia
+        self.dlugosc_dyzuru = random.choice([12 * 60, 24 * 60])  
+        offset = random.randint(0, 6 * 60)  
         self.start_dyzuru = self.app.symulowany_czas - offset
         self.w_pracy = True
         self.start_przerwy = None
 
-        self.niedostepna = random.random() < 0.2  # czy pielęgniarka jest niedostępna
+        self.niedostepna = random.random() < 0.2  
 
         self.canvas = canvas
         self.oddzialy = oddzialy
@@ -451,33 +427,33 @@ class Pielegniarka(threading.Thread):
     def run(self):
         while not self.stop_event.is_set():
             try:
-                # Czy dyżur się skończył?
-                # opóźnij przerwę jeśli trwa obsługa
+                
+                
                 if self.w_pracy and (self.app.symulowany_czas - self.start_dyzuru >= self.dlugosc_dyzuru):
                     with self.lock:
                         if self.pacjent is not None:
-                            # Poczekaj, aż skończy obsługę
+                            
                             time.sleep(0.1)
                             continue
-                        print(f"🛌 Pielęgniarka {self.id + 1} kończy dyżur i idzie na przerwę.")
+                        print(f" Pielegniarka {self.id + 1} konczy dyzur i idzie na przerwe.")
                         self.w_pracy = False
                         self.start_przerwy = self.app.symulowany_czas
 
-                    # 🛌 Sprawdzenie końca dyżuru DOPIERO PO obsłudze pacjenta
+                    
                     if self.w_pracy and (self.app.symulowany_czas - self.start_dyzuru >= self.dlugosc_dyzuru):
-                        print(f"🛌 Pielęgniarka {self.id + 1} kończy dyżur i idzie na przerwę.")
+                        print(f" Pielegniarka {self.id + 1} konczy dyzur i idzie na przerwe.")
                         self.w_pracy = False
                         self.start_przerwy = self.app.symulowany_czas
 
                     else:
-                        # opóźnij przerwę – wróć do pętli, aż pacjent zostanie obsłużony
+                        
                         time.sleep(0.1)
                         continue
 
-                # Czy przerwa się skończyła?
+                
                 if not self.w_pracy:
                     if self.app.symulowany_czas - self.start_przerwy >= 12 * 60:
-                        print(f"👩‍⚕️ Pielęgniarka {self.id + 1} wraca po przerwie.")
+                        print(f" Pielegniarka {self.id + 1} wraca po przerwie.")
                         self.w_pracy = True
                         self.dlugosc_dyzuru = random.choice([12 * 60, 24 * 60])
                         self.start_dyzuru = self.app.symulowany_czas
@@ -485,25 +461,25 @@ class Pielegniarka(threading.Thread):
                         time.sleep(1)
                         continue
 
-                # Losowa chwilowa niedostępność (np. dokumentacja)
+                
                 if self.w_pracy and not self.niedostepna and random.random() < 0.02:
                     self.niedostepna = True
-                    print(f"📋 Pielęgniarka {self.id + 1} chwilowo niedostępna (dokumentacja)")
+                    print(f" Pielegniarka {self.id + 1} chwilowo niedostepna (dokumentacja)")
                     threading.Thread(target=self.symuluj_niedostepnosc).start()
 
-                # Próba pobrania pacjenta z kolejki (nie blokująco)
+                
                 if self.niedostepna:
                     time.sleep(1)
                     continue
 
-                # Pobranie najbardziej krytycznego pacjenta
+                
                 with self.kolejka.mutex:
                     if not self.kolejka.queue:
                         time.sleep(0.1)
                         continue
 
-                    # Odfiltruj zmarłych i None
-                    kolejka_lista = [p for p in self.kolejka.queue if p is not None and p.status != "Zmarł"]
+                    
+                    kolejka_lista = [p for p in self.kolejka.queue if p is not None and p.status != "Zmarl"]
                     if not kolejka_lista:
                         time.sleep(0.1)
                         continue
@@ -514,7 +490,7 @@ class Pielegniarka(threading.Thread):
                     self.kolejka.queue.clear()
                     self.kolejka.queue.extend(kolejka_lista)
 
-                # Dodaj zabezpieczenie na wszelki wypadek:
+                
                 if pacjent is None:
                     time.sleep(0.1)
                     continue
@@ -526,15 +502,15 @@ class Pielegniarka(threading.Thread):
 
                 with self.lock:
                     self.pacjent = pacjent
-                    pacjent.status = f"Pielęgniarka {self.id + 1}"
+                    pacjent.status = f"Pielegniarka {self.id + 1}"
 
                 pacjent.start_pielegniarki = self.app.symulowany_czas
 
                 czas = self.app.symulowany_czas - pacjent.historia["czas_przybycia"]
-                self.app.statystyki["średni_czas_w_izbie"].append(czas / 60)  # czas w izbie w minutach
+                self.app.statystyki["sredni_czas_w_izbie"].append(czas / 60)  # czas w izbie w minutach
 
 
-                # Symulacja czasu obsługi (bez zablokowania całego wątku)
+                
                 time_start = time.time()
                 time_to_work = random.uniform(2, 4)
                 while time.time() - time_start < time_to_work:
@@ -544,50 +520,50 @@ class Pielegniarka(threading.Thread):
 
 
 
-                # Przydziel pacjenta do oddziału
+                
                 oddzial_obj = random.choice(list(self.oddzialy.values()))
-                pacjent.status = f"Oddział {oddzial_obj.nazwa}"
+                pacjent.status = f"Oddzial {oddzial_obj.nazwa}"
                 pacjent.oddzial_docelowy = oddzial_obj.nazwa
 
 
 
-                # Po zakończeniu obsługi pacjenta
+                
                 with self.lock:
                     self.pacjent = None
                     pacjent.czas_u_pielegniarki = self.app.symulowany_czas - pacjent.start_pielegniarki
-                    if "Pielęgniarka" in pacjent.status:
+                    if "Pielegniarka" in pacjent.status:
                         pacjent.status = f"Oczekuje: {oddzial_obj.nazwa}"
 
-                # # 50% szans na pójście do lekarza, 50% na próbę zakwaterowania od razu
+                
                 if random.random() < 0.5:
-                    # idzie do lekarza (konsultacja)
+                    
                     pacjent.status = f"Oczekuje: {oddzial_obj.nazwa}"
                     oddzial_obj.przyjmij_pacjenta(pacjent)
                 else:
-                    # próba natychmiastowego zakwaterowania
+                    
                     if oddzial_obj.zakwateruj_po_konsultacji(pacjent):
-                        pacjent.status = f"{oddzial_obj.nazwa} - łóżko {pacjent.index_lozka + 1}"
+                        pacjent.status = f"{oddzial_obj.nazwa} - lozko {pacjent.index_lozka + 1}"
                     else:
                         pacjent.status = f"{oddzial_obj.nazwa} (oczekuje)"
 
-                # DEBUG
-                # Zawsze próba natychmiastowego zakwaterowania
-                # if oddzial_obj.zakwateruj_po_konsultacji(pacjent):
-                #     pacjent.status = f"{oddzial_obj.nazwa} - łóżko {pacjent.index_lozka + 1}"
-                # else:
-                #     pacjent.status = f"{oddzial_obj.nazwa} (oczekuje)"
+                
+                
+                
+                
+                
+                
 
 
 
 
             except Exception as e:
-                print(f"Błąd wątku pielęgniarki {self.id + 1}: {e}")
+                print(f"Blad watku pielegniarki {self.id + 1}: {e}")
                 time.sleep(0.1)
 
     def symuluj_niedostepnosc(self):
-        time.sleep(random.randint(1, 5))  # np. 10-20 sekund
+        time.sleep(random.randint(1, 5))  
         self.niedostepna = False
-        print(f"✅ Pielęgniarka {self.id + 1} wróciła do przyjmowania pacjentów")
+        print(f" Pielegniarka {self.id + 1} wrocila do przyjmowania pacjentow")
 
     def zatrzymaj(self):
         self.stop_event.set()
@@ -603,23 +579,22 @@ class Lek:
         self.ilosc = random.randint(3, 10)
         self.prog_minimalny = random.randint(2, 5)
         self.sztuki_dozamowienia = random.randint(5, 10)
-        self.lock = threading.Lock() # każdy lek ma swój mutex
-        self.czy_zamowiony = False
+        self.lock = threading.Lock() 
 
     def zuzyj(self):
         with self.lock:
             if self.ilosc < 0:
-                print(f"⛔ Lek {self.nazwa} niedostępny – podanie wstrzymane!")
+                print(f" Lek {self.nazwa} niedostepny - podanie wstrzymane!")
                 return False
             self.ilosc -= 1
 
-            print(f"✅ Podano lek {self.nazwa}, pozostało {self.ilosc} szt.")
-            if self.ilosc <= self.prog_minimalny:
+            print(f" Podano lek {self.nazwa}, pozostalo {self.ilosc} szt.")
+            if self.ilosc < self.prog_minimalny:
                 self.zamow()
             return True
 
     def zamow(self):
-        print(f"Zamówienie leku {self.nazwa}: {self.sztuki_dozamowienia} sztuk")
+        print(f"Zamowienie leku {self.nazwa}: {self.sztuki_dozamowienia} sztuk")
         self.ilosc += self.sztuki_dozamowienia
         print(f"Stan leku {self.nazwa}: {self.ilosc} sztuk")
 
@@ -634,22 +609,19 @@ class Symulacja:
         self.symulacja_tick = 0
 
         self.statystyki = {
-            "pacjenci_na_oddziale": defaultdict(int),
-            "pacjenci_w_szpitalu": [],
-            "zgonów": 0,
+            "zgonow": 0,
             "wypisani": 0,
             "leki": defaultdict(int),
             "badania": defaultdict(int),
-            "średni_czas_ocz_na_lozko": [],
-            "średni_czas_w_szpitalu": [],
-            "średni_czas_w_izbie": [],
+            "sredni_czas_ocz_na_lozko": [],
+            "sredni_czas_w_szpitalu": [],
+            "sredni_czas_w_izbie": [],
             "nowi_pacjenci_dzienni": []  # lista krotek: (ciezki, sredni, lekki)
 
         }
 
 
-
-        # STATYSTYKI OGOLNE ----------------------------------------------------------------------------------
+        
         self.csv_folder = "statystyki"
         os.makedirs(self.csv_folder, exist_ok=True)
         self.csv_file = os.path.join(self.csv_folder, f"statystyki_{int(time.time())}.csv")
@@ -664,23 +636,23 @@ class Symulacja:
                 "zgony",
                 "wypisani",
                 "sredni czas w izbie (min)",
-                "sredni czas ocz. na łozko (min)",
-                "średni czas w szpitalu (min)",
+                "sredni czas ocz. na lozko (min)",
+                "sredni czas w szpitalu (min)",
                 "leki",
                 "badania"
             ])
 
-            # STATYSTYKI ODDZIAŁÓW ----------------------------------------------------------------------------------
+            
 
             self.csv_oddzialy_file = os.path.join(self.csv_folder, f"oddzialy_{int(time.time())}.csv")
             with open(self.csv_oddzialy_file, mode="w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerow([
                     "dzien", "oddzial", "pacjenci_przyjeci", "zgony", "wypisy",
-                    "badania_przeprowadzone", "%_zapełnienia_łóżek", "pacjenci_na_lekarza"
+                    "badania_przeprowadzone", "%_zapelnienia_lozek", "pacjenci_na_lekarza"
                 ])
 
-        self.pacjenci = [Pacjent(i, self.canvas, self) for i in range(PACJENTÓW)]
+        self.pacjenci = [Pacjent(i, self.canvas, self) for i in range(PACJENTOW)]
         self.kolejka_wejsciowa = Queue()
         for pacjent in self.pacjenci:
             self.kolejka_wejsciowa.put(pacjent)
@@ -690,18 +662,18 @@ class Symulacja:
             ilu = random.randint(*LEKARZE_NA_ODDZIAL)
             lekarze_list = []
             for j in range(ilu):
-                x = 100 + i * 250  # rozstaw
+                x = 100 + i * 250  
                 y = 450 + j * 60
                 lekarz = Lekarz(f"{nazwa}", x, y, self.canvas, j + 1, self)
                 lekarz.start()
                 lekarze_list.append(lekarz)
             self.lekarze[nazwa] = lekarze_list
 
-        # Rysowanie gabinetów lekarzy
-        # Stałe rysowanie lekarzy obok siebie nad gabinetami
+        
+        
         for lekarze_list in self.lekarze.values():
             for lekarz in lekarze_list:
-                # ustal pozycję lekarza i jego gabinetu statycznie
+                
                 rect_x1 = lekarz.x - 40
                 rect_y1 = lekarz.y - 20
                 rect_x2 = lekarz.x + 40
@@ -725,7 +697,7 @@ class Symulacja:
             "Ibuprofen": Lek("Ibuprofen"),
             "Paracetamol": Lek("Paracetamol"),
             "Antybiotyk": Lek("Antybiotyk"),
-            "Leki przeciwbólowe": Lek("Leki przeciwbólowe")
+            "Leki przeciwbolowe": Lek("Leki przeciwbolowe")
         }
 
         for i, (nazwa, gabinet) in enumerate(self.gabinety_badan.items()):
@@ -744,11 +716,11 @@ class Symulacja:
             )
             gabinet.rect_id = rect
             gabinet.label_id = label
-        self.diagności = []
+        self.diagnosci = []
         for gabinet in self.gabinety_badan.values():
             diagnosta = LekarzDiagnosta(gabinet, self.oddzialy, self)
             diagnosta.start()
-            self.diagności.append(diagnosta)
+            self.diagnosci.append(diagnosta)
 
 
         self.wypisani = []
@@ -767,7 +739,7 @@ class Symulacja:
         self.rysuj_lozka()
         self.update_gui()
 
-        self.nastepny_id = PACJENTÓW
+        self.nastepny_id = PACJENTOW
         self.generuj_pacjentow_thread = threading.Thread(target=self.generuj_nowych_pacjentow)
         self.generuj_pacjentow_thread.daemon = True
         self.generuj_pacjentow_thread.start()
@@ -781,29 +753,29 @@ class Symulacja:
             self.nastepny_id += 1
             self.pacjenci.append(nowy)
             self.kolejka_wejsciowa.put(nowy)
-            print(f"➕ Nowy pacjent {nowy.id} dodany do kolejki (co {czas:.2f}s)")
+            print(f" Nowy pacjent {nowy.id} dodany do kolejki (co {czas:.2f}s)")
 
 
-# STATYSTYKI ---------------------------------------------------------
 
-            dzien = self.symulowany_czas // (24 * 60) + 1  # dzień w symulacji
 
-            # Rozszerz listę, jeśli trzeba
+            dzien = self.symulowany_czas // (24 * 60) + 1  
+
+            
             while len(self.statystyki["nowi_pacjenci_dzienni"]) <= dzien:
                 self.statystyki["nowi_pacjenci_dzienni"].append((0, 0, 0))
 
-            # Załóżmy, że `nowy.krytycznosc` decyduje o stanie
+            
             if nowy.krytycznosc < 70:
                 typ = "krytyczny"
             elif nowy.krytycznosc < 130:
-                typ = "średni"
+                typ = "sredni"
             else:
                 typ = "lekki"
 
             k, s, l = self.statystyki["nowi_pacjenci_dzienni"][dzien]
             if typ == "krytyczny":
                 k += 1
-            elif typ == "średni":
+            elif typ == "sredni":
                 s += 1
             else:
                 l += 1
@@ -811,31 +783,26 @@ class Symulacja:
             self.statystyki["nowi_pacjenci_dzienni"][dzien] = (k, s, l)
 
     def draw_labels(self):
+        self.canvas.create_text(100, 30, text="Izba Przyjec", font=("Arial", 10))
         for i, nazwa in enumerate(ODDZIALY):
-           self.canvas.create_text(
-                100 + i * 250, 400,
-                text=f"Lekarz {nazwa}",
-                font=("Arial", 9),
-                tags="oddzial_pacjenci"
-            )
+            self.canvas.create_text(100 + i * 250, 160, text=f"Oddzial {nazwa}", font=("Arial", 10))
+            self.canvas.create_text(100 + i * 250, 400, text=f"Lekarz {nazwa}", font=("Arial", 9))
+        self.canvas.create_text(1550, 750, text="Wypisani", font=("Arial", 10))
+        self.canvas.create_text(1750, 750, text="Kostnica", font=("Arial", 10))
+        self.canvas.create_text(1650, 50, text="Stan magazynu lekow", font=("Arial", 10, "bold"))
 
-        # 📦 Inne etykiety GUI
-           self.canvas.create_text(1650, 50, text="Stan magazynu leków", font=("Arial", 10, "bold"),
-                                tags="oddzial_pacjenci")
+        
+        
+        
 
         for i, nazwa in enumerate(BADANIA):
-            self.canvas.create_text(
-                100 + i * 150, 780,
-                text=f"GABINET {nazwa}",
-                font=("Arial", 9),
-                tags="oddzial_pacjenci"
-            )
+            self.canvas.create_text(100 + i * 150, 780, text=f"GABINET {nazwa}", font=("Arial", 9))
 
     def rysuj_lozka(self):
         for idx, (nazwa, oddzial) in enumerate(self.oddzialy.items()):
             for i in range(len(oddzial.lozka)):
-                rzad = i // 3  # co 3 łóżka nowy rząd
-                kol = i % 3  # kolumna w rzędzie
+                rzad = i // 3  
+                kol = i % 3  
 
                 base_x = 50 + idx * 250
                 lx = base_x + kol * 50
@@ -852,17 +819,17 @@ class Symulacja:
             pacjent.krytycznosc = 0
 
     def popraw_krytycznosc(self, pacjent, ile):
-        pacjent.krytycznosc = min(pacjent.krytycznosc + ile, 250)  # max 200
+        pacjent.krytycznosc = min(pacjent.krytycznosc + ile, 250)  
 
     def sprawdz_zgon(self, pacjent, oddzial):
-        if pacjent and pacjent.krytycznosc <= 0 and pacjent.status != "Zmarł":
-            pacjent.status = "Zmarł"
+        if pacjent and pacjent.krytycznosc <= 0 and pacjent.status != "Zmarl":
+            pacjent.status = "Zmarl"
 
-# STATYSTYKI ---------------------------------------------------------
+
             czas_w_szpitalu = self.symulowany_czas - pacjent.historia["czas_przybycia"]
-            self.statystyki["średni_czas_w_szpitalu"].append(czas_w_szpitalu)
-            self.statystyki["zgonów"] += 1
-# --------------------------------------------------------------------
+            self.statystyki["sredni_czas_w_szpitalu"].append(czas_w_szpitalu)
+            self.statystyki["zgonow"] += 1
+
 
             self.zmarli.append(pacjent)
 
@@ -870,23 +837,23 @@ class Symulacja:
             if oddzial:
                 oddzial.zwolnij_lozko(pacjent)
             else:
-                print(f"⚠️ Pacjent {pacjent.id} zmarł, ale nie był przypisany do żadnego oddziału.")
+                print(f" Pacjent {pacjent.id} zmarl, ale nie byl przypisany do zadnego oddzialu.")
 
-            print(f"💀 Pacjent {pacjent.id} zmarł.")
+            print(f" Pacjent {pacjent.id} zmarl.")
 
-            # Oznacz graficznie jako zmarły
-            # Oznacz graficznie jako zmarły – tylko obramowanie na czarno
+            
+            
             self.canvas.itemconfig(pacjent.oval, outline="black", width=3)
             self.canvas.itemconfig(pacjent.label, text="")
 
-            # Usuń z kolejki wejściowej
+            
             with self.kolejka_wejsciowa.mutex:
                 try:
                     self.kolejka_wejsciowa.queue.remove(pacjent)
                 except ValueError:
                     pass
 
-            # Usuń z kolejek lekarzy
+            
             for lekarze in self.lekarze.values():
                 for lekarz in lekarze:
                     with lekarz.lock:
@@ -895,7 +862,7 @@ class Symulacja:
                         if lekarz.pacjent == pacjent:
                             lekarz.pacjent = None
 
-            # Usuń z kolejek oddziałów
+            
             for oddzial in self.oddzialy.values():
                 with oddzial.lock:
                     try:
@@ -903,7 +870,7 @@ class Symulacja:
                     except ValueError:
                         pass
 
-            # Usuń z gabinetów badań
+            
             for gabinet in self.gabinety_badan.values():
                 with gabinet.lock:
                     if gabinet.aktywny_pacjent == pacjent:
@@ -920,14 +887,11 @@ class Symulacja:
         if pacjent is None:
             return False
         if pacjent.krytycznosc >= 250 and pacjent.status != "Wypisany":
-            if pacjent in self.wypisani:
-                return False
-
             self.statystyki["wypisani"] += 1
             czas = pacjent.historia.get("czas_w_szpitalu", 0)
-            self.statystyki["średni_czas_w_szpitalu"].append(czas)
+            self.statystyki["sredni_czas_w_szpitalu"].append(czas)
             ocz = pacjent.historia.get("czas_oczekiwania_na_lozko", 0)
-            self.statystyki["średni_czas_ocz_na_lozko"].append(ocz)
+            self.statystyki["sredni_czas_ocz_na_lozko"].append(ocz)
 
             for lek, liczba in pacjent.historia["leki_przyjete"].items():
                 self.statystyki["leki"][lek] = self.statystyki["leki"].get(lek, 0) + liczba
@@ -938,7 +902,7 @@ class Symulacja:
             pacjent.historia["czas_w_szpitalu"] = self.symulowany_czas - pacjent.historia["czas_przybycia"]
             self.wypisani.append(pacjent)
             oddzial.zwolnij_lozko(pacjent)
-            print(f"🏁 Pacjent {pacjent.id} został wypisany.")
+            print(f" Pacjent {pacjent.id} zostal wypisany.")
             return True
         return False
 
@@ -949,96 +913,17 @@ class Symulacja:
 
             for i, pacjent in enumerate(list(self.kolejka_wejsciowa.queue)):
                 pacjent.move_to(50 + i * 30, 50)
-                self.obniz_krytycznosc(pacjent, 0.2)  # zmniejszenie krytyczności co tick // gorszy stan
+                self.obniz_krytycznosc(pacjent, 0.2)  
 
-            self.canvas.delete("zegar_info")
-
-            # 🕒 Zegar – dzień i godzina w prawym górnym rogu
-            dzien = self.symulowany_czas // (24 * 60) + 1
-            godzina = (self.symulowany_czas // 60) % 24
-            minuta = self.symulowany_czas % 60
-            czas_tekst = f"Dzień {dzien}, {godzina:02d}:{minuta:02d}"
-
-            # Wymiary prostokąta
-            x1, y1 = 1750, 10
-            x2, y2 = 1890, 50
-
-            # Ramka zegara
-            self.canvas.create_rectangle(
-                x1, y1, x2, y2,
-                outline="black", width=2,
-                tags="zegar_info"
-            )
-
-            # Tekst zegara
-            self.canvas.create_text(
-                (x1 + x2) // 2, (y1 + y2) // 2,
-                text=czas_tekst,
-                font=("Arial", 10, "bold"),
-                fill="black",
-                tags="zegar_info"
-            )
-            self.canvas.delete("pacjenci")
-
-            # 🔢 Zlicz pacjentów przypisanych do oddziałów (niezmarłych)
-            przypisani = defaultdict(int)
-            for pacjent in self.pacjenci:
-                if pacjent.status != "Zmarł" and pacjent.oddzial_docelowy:
-                    przypisani[pacjent.oddzial_docelowy] += 1
-
-            # 🏥 Liczba wszystkich pacjentów w szpitalu
-            wszyscy = sum(przypisani.values())
-            self.canvas.create_text(
-                1650, 30,
-                text=f"Pacjenci w szpitalu: {wszyscy}",
-                font=("Arial", 10, "bold"),
-                fill="darkblue",
-                tags="pacjenci"
-            )
-
-            # 🏥 Nazwy oddziałów + liczba pacjentów
-            self.canvas.create_text(100, 30, text="Izba Przyjęć", font=("Arial", 10), tags="oddzial_pacjenci")
-            for i, nazwa in enumerate(ODDZIALY):
-                self.canvas.create_text(
-                    100 + i * 250, 160,
-                    text=f"Oddział {nazwa} ({przypisani.get(nazwa)} pac.)",
-                    font=("Arial", 10),
-                    tags="pacjenci"
-                )
-
-                # 🟦 Wypisani z liczbą
-                self.canvas.create_text(
-                    1550, 750,
-                    text=f"Wypisani ({len(self.wypisani)})",
-                    font=("Arial", 10),
-                    tags="pacjenci"
-                )
-
-                # ⚫ Kostnica z liczbą
-                self.canvas.create_text(
-                    1750, 750,
-                    text=f"Kostnica ({len(self.zmarli)})",
-                    font=("Arial", 10),
-                    tags="pacjenci"
-                )
-
-            # Licznik pacjentów u pielęgniarek
+            
             liczniki_pacjentow = [0 for _ in self.pielegniarki]
             for i, pielegniarka in enumerate(self.pielegniarki):
                 if pielegniarka.get_pacjent():
                     liczniki_pacjentow[i] += 1
 
-            # 🧹 Usuń etykiety i pacjentów przy pielęgniarkach
+            
             self.canvas.delete("pielegniarka_label")
             self.canvas.delete("pacjent_przy_pielegniarce")
-
-            # 🧮 Zlicz ilu pacjentów jest przypisanych do każdego oddziału (oddzial_docelowy)
-            przypisani = defaultdict(int)
-            for pacjent in self.pacjenci:
-                if pacjent.status != "Zmarł" and pacjent.oddzial_docelowy:
-                    przypisani[pacjent.oddzial_docelowy] += 1
-
-
 
             for i, pielegniarka in enumerate(self.pielegniarki):
                 x_pos = pielegniarka.x
@@ -1050,7 +935,7 @@ class Symulacja:
                 else:
                     kolor = "black"
 
-                # Licznik nad etykietą
+                
                 self.canvas.create_text(
                     x_pos, 65,
                     text=f"{liczniki_pacjentow[i]} pac.",
@@ -1061,7 +946,7 @@ class Symulacja:
 
                 self.canvas.create_text(
                     x_pos, 80,
-                    text=f"Pielęgniarka {i + 1}",
+                    text=f"Pielegniarka {i + 1}",
                     font=("Arial", 10, "bold"),
                     fill=kolor,
                     tags="pielegniarka_label"
@@ -1076,8 +961,8 @@ class Symulacja:
 
             for gabinet in self.gabinety_badan.values():
                 pacjent = gabinet.get_aktywny()
-                if pacjent and pacjent.status != "Zmarł":
-                    if pacjent is None or pacjent.status == "Zmarł":
+                if pacjent and pacjent.status != "Zmarl":
+                    if pacjent is None or pacjent.status == "Zmarl":
                         continue
                     self.canvas.itemconfig(gabinet.rect_id, fill=pacjent.color)
                     pacjent.move_to(gabinet.x, gabinet.y)
@@ -1086,9 +971,9 @@ class Symulacja:
 
                 for j, p in enumerate(gabinet.get_kolejka()):
                     p.move_to(gabinet.x + j * 18, gabinet.y + 65)
-                    self.obniz_krytycznosc(p, 0.2)  # zmniejszenie krytyczności co tick
+                    self.obniz_krytycznosc(p, 0.2)  
 
-                    # 🔼 liczba oczekujących (nad gabinetem)
+                    
                 self.canvas.create_text(
                     gabinet.x, gabinet.y + 100,
                     text=f"{len(gabinet.get_kolejka())} w kolejce",
@@ -1097,7 +982,7 @@ class Symulacja:
                     tags="gabinet_info"
                 )
 
-                # 🔽 status aktywnego pacjenta (pod kolejką)
+                
                 aktywny = f"1 w gabinecie: {pacjent.id}" if gabinet.get_aktywny() else "pusto"
                 self.canvas.create_text(
                     gabinet.x, gabinet.y - 35,
@@ -1110,47 +995,40 @@ class Symulacja:
             for idx, oddzial in enumerate(self.oddzialy.values()):
                 nazwa = oddzial.nazwa
 
-                # łóżka i zajętość
+                
                 for i, pacjent in enumerate(oddzial.lozka):
                     rect_id = self.lozka_rects[(nazwa, i)]
                     color = pacjent.color if pacjent else "green"
                     self.canvas.itemconfig(rect_id, fill=color)
 
-                    # sprawdzenie zgonu przed dalszym przetwarzaniem
+                    
                     if self.sprawdz_zgon(pacjent, oddzial):
                         continue
 
                     if pacjent:
-                        # 2. Sprawdź zgon jako pierwszy (po zmianach!)
+                        
                         if self.sprawdz_zgon(pacjent, oddzial):
                             continue
 
-                        # 3. Sprawdź wypis
-                        # if pacjent.krytycznosc >= 250: # stan sie polepszyl
-                        #     pacjent.status = "Wypisany"
-                        #     self.wypisani.append(pacjent)
-                        #     oddzial.zwolnij_lozko(pacjent)
-                        #     continue
+                        
+                        if pacjent.krytycznosc >= 250: 
+                            pacjent.status = "Wypisany"
+                            self.wypisani.append(pacjent)
+                            oddzial.zwolnij_lozko(pacjent)
+                            continue
 
-                        # Sprawdź, czy pacjent nie zmarł
+                        
                         if pacjent.krytycznosc <= 0:
-                            pacjent.status = "Zmarł"
+                            pacjent.status = "Zmarl"
                             self.zmarli.append(pacjent)
                             oddzial.zwolnij_lozko(pacjent)
                             continue
 
-                        # Polepsz stan pacjenta kiedy jest na łóżku
+                        
                         if pacjent:
-                            self.popraw_krytycznosc(pacjent,0.1)  # poprawa krytyczności co tick
+                            self.popraw_krytycznosc(pacjent,0.1)  
 
-                        # Nagle pogorszenie stanu pacjenta
-                        if random.random() < 0.01:
-                            pacjent.krytycznosc -= 50
-                            if pacjent.krytycznosc < 0:
-                                pacjent.krytycznosc = 0
-                            print(f"⚠️ NAGŁE POGORSZENIE: Pacjent {pacjent.id} pogorszył się o 50 punktów!")
-
-                        # 4. Podawanie leków
+                        
                         for lek_nazwa, info in pacjent.leki.items():
                             czest = info["czestotliwosc"]
                             ostatni = info["ostatnio"]
@@ -1161,29 +1039,29 @@ class Symulacja:
                                 if lek_nazwa in self.leki:
                                     if self.leki[lek_nazwa].zuzyj():
                                         pacjent.leki[lek_nazwa]["ostatnio"] = self.symulowany_czas
-                                        self.popraw_krytycznosc(pacjent, random.randint(10,50))  # poprawa krytyczności po podaniu leku
-                                        print(f"💊 Pacjent {pacjent.id} poprawił stan po {lek_nazwa}")
+                                        self.popraw_krytycznosc(pacjent, random.randint(10,50))  
+                                        print(f" Pacjent {pacjent.id} poprawil stan po {lek_nazwa}")
 
-# Statystyki ---------------------------------------------------------------------------------------
+
                                         self.statystyki["leki"][lek_nazwa] += 1
 
                                     else:
-                                        pacjent.krytycznosc -= 10  # zmniejszenie krytyczności przy braku leku
+                                        pacjent.krytycznosc -= 10  
                                         if random.random() < 0.1:
-                                            # losowe podanie leku
+                                            
                                             if random.random() < 0.1:
                                                 losowy_lek = random.choice(list(self.leki.keys()))
                                                 print(
-                                                    f"⚠️ Błędne podanie: Pacjent {pacjent.id} dostał {losowy_lek} poza harmonogramem")
+                                                    f" Bledne podanie: Pacjent {pacjent.id} dostal {losowy_lek} poza harmonogramem")
                                                 self.leki[losowy_lek].zuzyj()
-                                            # Skrócenie czasu pobytu o 10% po podaniu leku
-                                            # if random.random() < 0.2:
-                                            #     zmiana = int(pacjent.czas_na_odziale * 0.1)
-                                            #     pacjent.czas_na_odziale -= zmiana
-                                            #     print(f"⏱️ Pacjent {pacjent.id} skrócił czas pobytu o {zmiana} minut")
+                                            
+                                            
+                                            
+                                            
+                                            
 
-                        # # Losowe dodanie badania
-                        if random.random() < 0.02:  # niska szansa co tick
+                        
+                        if random.random() < 0.02:  
                             dostepne = list(set(BADANIA) - set(pacjent.badania_do_wykonania))
                             if dostepne:
                                 nowe_badanie = random.choice(dostepne)
@@ -1192,22 +1070,22 @@ class Symulacja:
                                     if not pacjent.w_trakcie_badania:
                                         self.gabinety_badan[nowe_badanie].dodaj_pacjenta(pacjent)
                                         pacjent.w_trakcie_badania= True
-                                        print(f"🧪 Pacjent {pacjent.id} (łóżko) dostał nowe badanie: {nowe_badanie}")
+                                        print(f" Pacjent {pacjent.id} (lozko) dostal nowe badanie: {nowe_badanie}")
 
-                        # 5. Rysowanie
+                        
                         lx, ly = self.lozka_graficzne[(nazwa, i)]
                         pacjent.move_to(lx, ly)
 
-                # Rysuj pacjentów oczekujących na łóżko pod łóżkami
+                
                 for j, pacjent in enumerate(list(oddzial.kolejka.queue)):
-                    if pacjent is None or pacjent.status == "Zmarł":
+                    if pacjent is None or pacjent.status == "Zmarl":
                         continue
-                    x = 100 + idx * 250 + (j % 3) * 40  # 3 pacjentów w rzędzie, odstęp 40
-                    y = 235 + (j // 3) * 20  # każdy rząd niżej o 20px
+                    x = 100 + idx * 250 + (j % 3) * 40  
+                    y = 235 + (j // 3) * 20  
                     pacjent.move_to(x, y)
-                    self.obniz_krytycznosc(pacjent, 0.2)  # zmniejszenie stabilnosci co tick
+                    self.obniz_krytycznosc(pacjent, 0.2)  
 
-                # pacjenci gotowi po konsultacji -> łóżka
+                
                 for lekarz in oddzial.lekarze:
                     while lekarz.gotowi:
                         pacjent = lekarz.gotowi.pop(0)
@@ -1220,52 +1098,52 @@ class Symulacja:
                 for lekarz in oddzial.lekarze:
                     pacjent = lekarz.get_pacjent()
                     if pacjent:
-                        pacjent.move_to(lekarz.x + 7, lekarz.y + 15)  # pacjent w gabinecie
+                        pacjent.move_to(lekarz.x + 7, lekarz.y + 15)  
 
                     for j, p in enumerate(lekarz.get_kolejka()):
-                        if pacjent is None or pacjent.status == "Zmarł":
+                        if pacjent is None or pacjent.status == "Zmarl":
                             continue
-                        p.move_to(lekarz.x + 45 + j * 20, lekarz.y - 10)  # kolejka z prawej strony gabinetu
-                        self.obniz_krytycznosc(p, 0.2)  # zmniejszenie krytyczności co tick
+                        p.move_to(lekarz.x + 45 + j * 20, lekarz.y - 10)  
+                        self.obniz_krytycznosc(p, 0.2)  
 
-                    # pacjenci wracający na łóżko po badaniu
+                    
                 for pacjent in self.pacjenci:
                     if self.sprawdz_zgon(pacjent, self.oddzialy.get(pacjent.oddzial_docelowy)):
                         continue
                     if self.sprawdz_wypis(pacjent, self.oddzialy.get(pacjent.oddzial_docelowy)):
                         continue
 
-                    if pacjent.status == "Powrót na łóżko" and pacjent.czy_ma_lozko and pacjent.index_lozka is not None:
+                    if pacjent.status == "Powrot na lozko" and pacjent.czy_ma_lozko and pacjent.index_lozka is not None:
                         for oddzial in self.oddzialy.values():
                             if any(pacjent == p for p in oddzial.lozka if p is not None):
                                 break
                         else:
-                            # pacjent nie leży (np. po badaniu) – przywróć na swoje łóżko
+                            
                             for oddzial in self.oddzialy.values():
                                 for i, lozko in enumerate(oddzial.lozka):
                                     if lozko is None and i == pacjent.index_lozka:
                                         oddzial.lozka[i] = pacjent
-                                        pacjent.status = f"{oddzial.nazwa} - łóżko {i + 1}"
+                                        pacjent.status = f"{oddzial.nazwa} - lozko {i + 1}"
                                         break
-                    elif pacjent.status == "Powrót na łóżko" and not pacjent.czy_ma_lozko:
-                        # pacjent nie miał łóżka – zakwateruj po badaniach
+                    elif pacjent.status == "Powrot na lozko" and not pacjent.czy_ma_lozko:
+                        
                         for oddzial in self.oddzialy.values():
                             if pacjent not in oddzial.kolejka.queue and pacjent not in oddzial.lozka:
                                 oddzial.zakwateruj_po_konsultacji(pacjent)
                                 break
 
-            # Zakwateruj pacjentów z kolejki, jeśli są wolne łóżka
+            
             with oddzial.lock:
                 for i in range(len(oddzial.lozka)):
                     if oddzial.lozka[i] is None and not oddzial.kolejka.empty():
                         nowy = oddzial.kolejka.get()
                         oddzial.lozka[i] = nowy
-                        nowy.status = f"{oddzial.nazwa} - łóżko {i + 1}"
+                        nowy.status = f"{oddzial.nazwa} - lozko {i + 1}"
                         nowy.czy_ma_lozko = True
                         nowy.index_lozka = i
                         nowy.leki = {}
 
-                        # przypisz leki jak przy pierwszym zakwaterowaniu
+                        
                         for lek_nazwa in random.sample(list(self.leki.keys()), random.randint(1, 4)):
                             czestotliwosc = random.choice([8, 12, 24])
                             nowy.leki[lek_nazwa] = {
@@ -1284,65 +1162,40 @@ class Symulacja:
 
                     self.canvas.itemconfig(lekarz.rect_id, fill=kolor_gabinetu)
 
-            # Rysowanie wypisanych pacjentów
+            
             for i, pacjent in enumerate(self.wypisani):
                 x = 1550 + (i % 7) * 20
                 y = 770 + (i // 7) * 35
+                pacjent.move_to(x, y)
 
-                # ❌ Ukryj kółko i etykietę pacjenta
-                self.canvas.itemconfig(pacjent.oval, state="hidden")
-                self.canvas.itemconfig(pacjent.label, state="hidden")
+            
+            for i, pacjent in enumerate(self.zmarli):
+                x = 1750 + (i % 5) * 20
+                y = 770 + (i // 5) * 35
+                pacjent.move_to(x, y)
 
-                # ✅ Zamiast tego narysuj tylko tekst "id |"
-                self.canvas.create_text(
-                    x, y,
-                    text=f"{pacjent.id} |",
-                    font=("Arial", 10),
-                    anchor="nw",
-                    fill="black",
-                    tags="wypisani_info"
-                )
-
-            # Rysowanie zmarłych pacjentów
-            # ❌ Ukryj graficzne kółka i teksty pacjenta
-            self.canvas.itemconfig(pacjent.oval, state="hidden")
-            self.canvas.itemconfig(pacjent.label, state="hidden")
-
-            # ✅ Wyświetl tylko tekst "id |"
-            self.canvas.create_text(
-                x, y,
-                text=f"{pacjent.id} |",
-                font=("Arial", 10),
-                anchor="nw",
-                fill="black",
-                tags="zmarli_info"
-            )
-
-            # AKTUALIZACJA CZASU
+            
             self.symulacja_tick += 1
             if self.symulacja_tick >= 10:
                 self.symulowany_czas += 60
                 self.symulacja_tick = 0
 
-            # 🧪 Stan leków – GUI
-            self.canvas.delete("leki_info")  # 👈 USUŃ stare etykiety przed rysowaniem nowych
+            
+            self.canvas.delete("leki_info")  #  USUN stare etykiety przed rysowaniem nowych
 
             for i, (nazwa, lek) in enumerate(self.leki.items()):
-                kolor = "orange" if lek.ilosc < lek.prog_minimalny else "black"
-                kolor = "red" if lek.ilosc <= 0 else kolor
                 self.canvas.create_text(
                     1600, 60 + i * 15,
                     text=f"{nazwa}: {lek.ilosc} szt.",
                     font=("Arial", 8),
                     anchor="nw",
-                    fill=kolor,
                     tags="leki_info"
                 )
 
-            # ⏱️ NIE KOŃCZ SYMULACJI AUTOMATYCZNIE!
+            
             self.canvas.after(100, self.update_gui)
         except Exception as e:
-            print(f"Błąd aktualizacji GUI: {e}")
+            print(f"Blad aktualizacji GUI: {e}")
             traceback.print_exc()
             self.canvas.after(100, self.update_gui)
 
@@ -1352,18 +1205,18 @@ class Symulacja:
             self.statystyki["nowi_pacjenci_dzienni"]) else [0, 0, 0]
         krytyczni, sredni, leccy = nowi
 
-        sr_izba = średnia(self.statystyki["średni_czas_w_izbie"])
-        sr_ocz = średnia(self.statystyki["średni_czas_ocz_na_lozko"])
-        sr_szpital = średnia(self.statystyki["średni_czas_w_szpitalu"])
+        sr_izba = srednia(self.statystyki["sredni_czas_w_izbie"])
+        sr_ocz = srednia(self.statystyki["sredni_czas_ocz_na_lozko"])
+        sr_szpital = srednia(self.statystyki["sredni_czas_w_szpitalu"])
         suma_lekow = sum(self.statystyki["leki"].values())
         badania_str = "; ".join(f"{nazwa}: {liczba}" for nazwa, liczba in self.statystyki["badania"].items())
         with open(self.csv_file, mode="a", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)  # ← tutaj tworzysz writer
+            writer = csv.writer(f)  
 
             writer.writerow([
                 dzien,
                 krytyczni, sredni, leccy,
-                self.statystyki["zgonów"],
+                self.statystyki["zgonow"],
                 self.statystyki["wypisani"],
                 sr_izba,
                 sr_ocz,
@@ -1388,7 +1241,7 @@ class Symulacja:
                             if p.oddzial_docelowy == nazwa and
                             p.historia["czas_przyjecia_na_oddzial"] // 1440 == dzien-1)
 
-                # Statystyki dla "Izba Przyjęć" – pacjenci bez oddziału
+                
                 zgony_izba = sum(1 for p in self.zmarli
                                  if p.oddzial_docelowy is None and
                                  p.historia.get("czas_przyjecia_na_oddzial", 0) == 0 and
@@ -1400,17 +1253,17 @@ class Symulacja:
                                    p.historia["czas_przybycia"] // 1440 == dzien - 1)
 
                 writer.writerow([
-                    dzien, "Izba Przyjęć",  # oddział
-                    0,  # pacjenci_przyjeci
-                    zgony_izba,  # zgony
-                    0,  # wypisy
-                    0,  # badania
-                    0,  # % zapełnienia łóżek
-                    0  # pacjenci_na_lekarza
+                    dzien, "Izba Przyjec",  # oddzial
+                    0,  
+                    zgony_izba,  
+                    0,  
+                    0,  
+                    0,  
+                    0  
                 ])
                 print("XXXXXXXXXXXXXXXXXXX")
                 for p in self.zmarli:
-                    print(f"Pacjent {p.id} zmarł na oddziale {p.oddzial_docelowy} w dniu {p.historia['czas_przyjecia_na_oddzial'] // 1440 + 1}")
+                    print(f"Pacjent {p.id} zmarl na oddziale {p.oddzial_docelowy} w dniu {p.historia['czas_przyjecia_na_oddzial'] // 1440 + 1}")
 
                 wypisy = sum(1 for p in self.wypisani
                              if p.oddzial_docelowy == nazwa and
@@ -1438,7 +1291,7 @@ class Symulacja:
         for lekarze_list in self.lekarze.values():
             for l in lekarze_list:
                 l.zatrzymaj()
-        for d in self.diagności:
+        for d in self.diagnosci:
             d.zatrzymaj()
         self.root.destroy()
         sys.exit()
@@ -1446,6 +1299,6 @@ class Symulacja:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title("Szpital – symulacja")
+    root.title("Symulacja pacjentow w szpitalu - kolejki do lekarza i lozek")
     app = Symulacja(root)
-    root.mainloop()
+    root.mainloop()           

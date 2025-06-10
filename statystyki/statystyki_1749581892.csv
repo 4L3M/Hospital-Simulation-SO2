@@ -1,0 +1,4 @@
+dzien,nowi pacjenci - stan ciezki,nowi pacjenci - stan sredni,nowi pacjenci - stan lekki,zgony,wypisani,sredni czas w izbie (min),sredni czas ocz. na łozko (min),średni czas w szpitalu (min),leki,badania
+1,2,7,3,0,1,0.0,660.0,0.0,2,CT: 1; MR: 3; Konsultacja: 1; Biopsja: 3; USG: 1
+2,4,9,8,0,23,0.35,302.61,474.78,88,CT: 16; MR: 22; Konsultacja: 24; Biopsja: 20; USG: 20; KREW: 16; Gastroskopia: 27; RTG: 9; EKG: 14; Kolonoskopia: 11
+3,7,17,18,0,62,0.47,428.71,453.87,221,CT: 38; MR: 55; Konsultacja: 65; Biopsja: 51; USG: 43; KREW: 65; Gastroskopia: 59; RTG: 25; EKG: 53; Kolonoskopia: 58
