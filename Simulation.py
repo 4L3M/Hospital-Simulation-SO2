@@ -1304,19 +1304,22 @@ class Symulacja:
                 )
 
             # Rysowanie zmarłych pacjentów
-            # ❌ Ukryj graficzne kółka i teksty pacjenta
-            self.canvas.itemconfig(pacjent.oval, state="hidden")
-            self.canvas.itemconfig(pacjent.label, state="hidden")
+            # Rysowanie zmarłych pacjentów
+            for i, pacjent in enumerate(self.zmarli):
+                x = 1750 + (i % 7) * 20
+                y = 770 + (i // 7) * 35
 
-            # ✅ Wyświetl tylko tekst "id |"
-            self.canvas.create_text(
-                x, y,
-                text=f"{pacjent.id} |",
-                font=("Arial", 10),
-                anchor="nw",
-                fill="black",
-                tags="zmarli_info"
-            )
+                self.canvas.itemconfig(pacjent.oval, state="hidden")
+                self.canvas.itemconfig(pacjent.label, state="hidden")
+
+                self.canvas.create_text(
+                    x, y,
+                    text=f"{pacjent.id} |",
+                    font=("Arial", 10),
+                    anchor="nw",
+                    fill="black",
+                    tags="zmarli_info"
+                )
 
             # AKTUALIZACJA CZASU
             self.symulacja_tick += 1
